@@ -1,7 +1,22 @@
 # crysalin
-Engineering crysalin lattice
+The aim is to engineer a better crysalin lattice.
 
-NB. Many of the scripts were run in a reverse–port-forwarded Jupyter Lab notebook running in the cluster
+## Background
+
+Crysalins are an engineered complex that forms a lattice for encapsulating protein for X-ray crystallography.
+The complex consists of AHIR and streptavidin.
+AHIR consists of N-terminal Rossmann fold knob with strep-tag and a C-terminal helical bundle that knots with others,
+forming a dodecamer, resulting in a cubic lattice with each steptavidin tetramers forming the vertices.
+
+The Rossmann fold binds weakly and is wobbly.
+Therefore can new designs be made that bind more strongly and are more rigid?
+
+Project members (Newcastle): Martin Noble, Mathew Martin, Rhianna Rowland
+Project members (Oxford): Frank von Delft, Michael Fairhead, me (Matteo Ferla)
+
+## Caveat
+
+Many of the scripts were run in a reverse–port-forwarded Jupyter Lab notebook running in the cluster
 ([tutorial](https://www.blopig.com/blog/2023/10/ssh-the-boss-fight-level-jupyter-notebooks-from-compute-nodes/)).
 And for archiving they are presented here as scripts with variables hardcoded in the top...
 A few step generate a godzillion files in a single directory, which is bad for the FS.

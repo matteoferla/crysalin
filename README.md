@@ -77,5 +77,13 @@ I then placed the monomer in a subset complex and relaxed the chain.
 
 > :construction: :warning: TODO graphs galore
 
+## AF2 validation
+
+...
+
+## Thermal tempering
+
+...
+
 
 

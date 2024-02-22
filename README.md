@@ -75,7 +75,7 @@ which was a dimer...
 
 ![alpha](images/alpha.png)
 
-Another example, but theta-hot, which uses the trikaihemimer (1.5x AHIR, 2x Streptavidin):
+Another example, from theta-hot experiment, which uses the trikaihemimer (1.5x AHIR, 2x Streptavidin):
 ![img.png](images/thetahot.png)
 
 RFdiffusion can accept residues that are more special for interactions ('hotspots' in their parlance).
@@ -103,7 +103,7 @@ Three sub-experiments were run:
 
 See [filtering](code/filter.py) for the filtering scripts
 
-Even if the models are polyglycine, they can tell if there are clashes.
+Even if the models are polyglycine, they can be used to tell if there are clashes.
 Here is a prelimary plot of progress of the generated models:
 ![img.png](images/iterations.png)
 

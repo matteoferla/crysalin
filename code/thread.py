@@ -23,12 +23,12 @@ pr_conf: ModuleType = pyrosetta.rosetta.core.conformation
 pr_scoring: ModuleType = pyrosetta.rosetta.core.scoring
 pr_options: ModuleType = pyrosetta.rosetta.basic.options
 
-
 data_path = Path('scored_complexes3.pkl.gz')
 seqs_path = Path('output_MPNN2/seqs')
 out_path = Path('output_MPNN2/pdbs')
 csv_path = Path('threading3.csv')
 apo_score = -337.2997472992847
+split_size = 250
 
 # --------------------------------
 print('\n## Init PyRosetta\n')
@@ -49,88 +49,11 @@ pr_options.set_boolean_option('in:detect_disulf', True)
 # --------------------------------
 # Define functions
 
-def add_chain(built: pyrosetta.Pose, new: pyrosetta.Pose) -> None:
-    """
-    Add a chain ``new`` to a pose ``built`` preserving the residue numbering.
-    """
-    offset: int = built.total_residue()
-    for chain in new.split_by_chain():
-        pyrosetta.rosetta.core.pose.append_pose_to_pose(built, chain, new_chain=True)
-        built_pi = built.pdb_info()
-        chain_pi = chain.pdb_info()
-        for r in range(1, chain.total_residue() + 1):
-            built_pi.set_resinfo(res=r + offset, chain_id=chain_pi.chain(r), pdb_res=chain_pi.number(r))
-
-
-def superpose(ref: pyrosetta.Pose, mobile: pyrosetta.Pose, aln_map: Optional[Dict[int, int]] = None) -> float:
-    if aln_map is None:
-        aln_map = dict(zip(range(1, ref.total_residue() + 1), range(1, mobile.total_residue() + 1)))
-    # ## make pyrosetta map
-    atom_map = prs.map_core_id_AtomID_core_id_AtomID()
-    for r, m in aln_map.items():
-        ref_atom = pyrosetta.AtomID(ref.residue(r + 1).atom_index("CA"), r + 1)
-        mobile_atom = pyrosetta.AtomID(mobile.residue(m + 1).atom_index("CA"), m + 1)
-        atom_map[mobile_atom] = ref_atom
-    # return RMSD
-    return prc.scoring.superimpose_pose(mod_pose=mobile, ref_pose=ref, atom_map=atom_map)
-
-
-def relax(pose: pyrosetta.Pose, others, cycles=1):
-    add_chain(pose, others)
-    scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
-    dG_others = scorefxn(others)
-    rs: ModuleType = prc.select.residue_selector
-    chainA_sele: rs.ResidueSelectorr = rs.ChainSelector('A')
-    chainA: pru.vector1_bool = chainA_sele.apply(pose)
-    neigh_sele: rs.ResidueSelector = prc.select.residue_selector.NeighborhoodResidueSelector(chainA_sele, True, 5)
-    neighs: pru.vector1_bool = neigh_sele.apply(pose)
-    relax = pyrosetta.rosetta.protocols.relax.FastRelax(scorefxn, cycles)
-    movemap = pyrosetta.MoveMap()
-    movemap.set_bb(chainA)
-    movemap.set_chi(neighs)
-    movemap.set_jump(chainA)
-    relax.set_movemap(movemap)
-    relax.apply(pose)
-    return scorefxn(pose) - dG_others
-
-
-def thread(template_block, target_seq, target_name, template_name, temp_folder='/data/outerhome/tmp'):
-    # load template
-    template = pyrosetta.Pose()
-    prc.import_pose.pose_from_pdbstring(template, template_block)
-    # thread
-    aln_filename = f'{temp_folder}/{template_name}-{target_name}.grishin'
-    ph.write_grishin(target_name=target_name,
-                     target_sequence=target_seq,
-                     template_name=template_name,
-                     template_sequence=template.sequence(),
-                     outfile=aln_filename
-                     )
-    aln: prc.sequence.SequenceAlignment = \
-    pyrosetta.rosetta.core.sequence.read_aln(format='grishin', filename=aln_filename)[1]
-    threaded: pyrosetta.Pose
-    threader: prp.comparative_modeling.ThreadingMover
-    threadites: pru.vector1_bool
-    threaded, threader, threadites = ph.thread(target_sequence=target_seq,
-                                               template_pose=template,
-                                               target_name=target_name,
-                                               template_name=template_name,
-                                               align=aln
-                                               )
-    # no need to superpose. It is already aligned
-    # ...
-    # fix pdb info
-    n = threaded.total_residue()
-    pi = prc.pose.PDBInfo(n)
-    for i in range(1, n + 1):
-        pi.number(i, i)
-        pi.chain(i, 'A')
-    threaded.pdb_info(pi)
-    return threaded
 
 
 def run_process(target_name, **kvargs):
     tick = time.time()
+    (out_path / f'{target_name}.dummy').write_text('hello world')
     threaded: pyrosetta.Pose = thread(target_name=target_name, **kvargs)
     dG = relax(threaded, others)
     threaded.dump_pdb(f'{out_path}/{target_name}.pdb')
@@ -145,6 +68,8 @@ print('\n## Load the data\n')
 # df = pd.concat([df2, df1])
 df = pd.read_pickle(data_path)
 df = df.reset_index().drop_duplicates('name', keep='first').set_index('name')
+if split_size:
+    df = df.sample(split_size).copy()
 df['dG_bind'] = df.complex_score - df.monomer_score - (apo_score)
 df['group'] = df.index.to_series().str.split('_').apply(operator.itemgetter(0))
 df['subgroup'] = df.index.to_series().apply(lambda name: '_'.join(name.split('_')[:-1]))
@@ -175,6 +100,10 @@ with ProcessPool(max_workers=os.cpu_count() - 1, max_tasks=0) as pool:
             info['sequence']: str = str(seq_record.seq) # noqa
             info['pI'] = ProtParam.ProteinAnalysis(seq_record.seq).isoelectric_point()
             preresults.append(info)
+            if info['name'] not in df.index:
+                with open('missing.txt', 'a') as fh:
+                    fh.write(f'{info["name"]}\n')
+                continue
             row: pd.Series = df.loc[info['name']]
             template_block = row.monomer
             template_name = info['name']
@@ -182,6 +111,8 @@ with ProcessPool(max_workers=os.cpu_count() - 1, max_tasks=0) as pool:
             # neg control will be Ø which looks like 0̷
             # okay. Ø er ikke det sidste bogstav, Å er. But shmeh
             target_name = f"{info['name']}{'ABCDEFGHIJKLMNOPQRSTUVWXYZØ'[int(info.get('sample', -1))]}"
+            if (out_path / f'{target_name}.pdb').exists() or (out_path / f'{target_name}.dummy'):
+                continue
             assert len(row.sequence) == len(info['sequence']), f'The sequences for {target_name} does not match length'
             future: ProcessFuture = pool.schedule(run_process,
                                    kwargs=dict(template_block=template_block, target_seq=target_seq,
@@ -203,4 +134,9 @@ with ProcessPool(max_workers=os.cpu_count() - 1, max_tasks=0) as pool:
                 print(error.__traceback__)  # traceback of the function
             results.append(dict(error=error.__class__.__name__, error_msg=error_msg))
 
-pd.DataFrame(results).to_csv(csv_path)
+df = pd.DataFrame(results)
+if csv_path.exists():
+    original = pd.read_csv(csv_path)
+    df = pd.concat([original, df])
+df.to_csv(csv_path)
+

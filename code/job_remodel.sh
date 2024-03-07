@@ -4,12 +4,15 @@ export APPTAINER_CONTAINER=/data/xchem-fragalysis/mferla/singularity/rocky3.sif;
 export APPTAINERENV_CONDA_PREFIX=/data/xchem-fragalysis/mferla/waconda;
 export JOB_INNER_SCRIPT=/data/xchem-fragalysis/mferla/crysalin/job_remodel.sh;
 
-export APPTAINERENV_EXPERIMENT=ins139_141
-condor_submit /data/xchem-fragalysis/shared/target_script.condor -a 'Requirements=(machine == "orpheus-worker-38.novalocal")';
-export APPTAINERENV_EXPERIMENT=ins59_61
-condor_submit /data/xchem-fragalysis/shared/target_script.condor -a 'Requirements=(machine == "orpheus-worker-39.novalocal")';
-export APPTAINERENV_EXPERIMENT=ins36_41
-condor_submit /data/xchem-fragalysis/shared/target_script.condor -a 'Requirements=(machine == "orpheus-worker-40.novalocal")';
+for i in {1..5}; do
+  export INSERTION_LEN=$i;
+  export APPTAINERENV_EXPERIMENT=ins139_141
+  condor_submit /data/xchem-fragalysis/shared/target_script.condor;
+  export APPTAINERENV_EXPERIMENT=ins59_61
+  condor_submit /data/xchem-fragalysis/shared/target_script.condor;
+  export APPTAINERENV_EXPERIMENT=ins36_41
+  condor_submit /data/xchem-fragalysis/shared/target_script.condor;
+done
 USAGE
 
 # nohup sleep 7000 && let JOB_ITERATION=30 && condor_submit /data/xchem-fragalysis/shared/target_script.condor;

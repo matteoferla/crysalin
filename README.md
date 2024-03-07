@@ -125,6 +125,25 @@ I then placed the monomer in a subset complex and relaxed the chain.
 
 > :construction: :warning: TODO graphs galore
 
+## StrepTag
+
+The StrepTag is an 8+ residue tag that binds to Streptavidin.
+Some constructs retain the tag, others don't.
+I did not remove it from the templates as I did not want its rediscovey to be a factor in the ranking.
+However, it causes issues.
+The sequence between 149:A and 159:A (inclusives) is `NWSHPQFEKRP`.
+* Complex minimised: -1974.9 kcal/mol
+* Monomer extracted: -773.9 kcal/mol
+* Tag extracted: +9.5 kcal/mol
+* Monomer w/o tag: -768.0 kcal/mol
+* Complex w/o tag: -1949.2 kcal/mol
+
+The tag only add -15.5 kcal/mol to the monomer's score, but -19.7 kcal/mol to the complex's score.
+
+Therefore, any model with the tag will be penalised by +20 kcal/mol,
+when the interface score is brutally calculated without minimising the monomer
+as it done here.
+
 ## AF2 validation
 
 > :construction: :warning: TODO ...
@@ -152,7 +171,7 @@ PDB:1SWE vs PDB:1SWB
 
 ## Footnote: I remember seeing that
 
-I have not run AF2 validation en mass, however I am concerned by some tests:
+I have not run AF2 validation en masse, however I am concerned by some tests:
 AF2 makes models which better match the template than Rosetta energy minimised.
 That is to say, AF2 is remembering seeing the fold, which I don't like,
 hence the threading+relaxing step

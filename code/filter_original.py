@@ -1,3 +1,7 @@
+"""
+Filter against terrible clashes
+"""
+
 from common_pyrosetta import *
 
 import multiprocessing
@@ -35,22 +39,97 @@ pyrosetta.distributed.maybe_init(extra_options=ph.make_option_string(no_optH=Fal
                                                                      ignore_unrecognized_res=True,
                                                                      load_PDB_components=False,
                                                                      ignore_waters=True,
-                                                                     # in=dict(in:detect_disulf=True)
+                                                                     # in=dict(in:detect_disulf=False)
                                                                      )
                                  )
-pr_options.set_boolean_option('in:detect_disulf', True)
+pr_options.set_boolean_option('in:detect_disulf', False)
+
+class Analyse:
+    def __init__(self, ref: pyrosetta.Pose, others: pyrosetta.Pose):
+        self.others = others
+        self.disulfides2alanine(others)
+        self.disulfides2alanine(ref)
+        pi = ref.pdb_info()
+        self._ref_info: List[str] = [''] + [pi.pose2pdb(i) for i in range(1, 1 + ref.total_residue())]
+        self.ref_chainA: pyrosetta.Pose = ref.split_by_chain(1)
+        self._ref_chainA_len: int = self.ref_chainA.total_residue()
+
+    @staticmethod
+    def disulfides2alanine(pose):
+        """
+        Replaces disulfides with alanines.
+        """
+        disulfide_res = prc.select.residue_selector.ResidueNameSelector("CYS:disulfide")
+        for resi in prc.select.get_residues_from_subset(disulfide_res.apply(pose)):
+            prp.simple_moves.MutateResidue(target=resi, new_res='ALA').apply(pose)
+
+    @staticmethod
+    def add_chain(built: pyrosetta.Pose, new: pyrosetta.Pose) -> None:
+        """
+        Add a chain ``new`` to a pose ``built`` preserving the residue numbering.
+        """
+        for chain in new.split_by_chain():
+            pyrosetta.rosetta.core.pose.append_pose_to_pose(built, chain, new_chain=True)
+            built_pi = built.pdb_info()
+            chain_pi = chain.pdb_info()
+            for r in range(1, chain.total_residue() + 1):
+                offset: int = built.total_residue()
+                built_pi.set_resinfo(res=r + offset, chain_id=chain_pi.chain(r), pdb_res=chain_pi.number(r))
+            built_pi.obsolete(False)
+
+    @classmethod
+    def make_woA(cls, original_pose: pyrosetta.Pose) -> pyrosetta.Pose:
+        chains: pru.vector1_std_shared_ptr_core_pose_Pose_t = original_pose.split_by_chain()
+        others: pyrosetta.Pose = chains[2].clone()
+        for c in range(3, len(chains) + 1):
+            cls.add_chain(others, chains[c])
+        return others
+
+    def get_ref_info(self, resi: int, new_len: int) -> str:
+        """
+        Converts the residue number to the PDB numbering of the reference.
+        """
+        return self._ref_info[resi + new_len - self._ref_chainA_len]
+
+    def __call__(self, pose: pyrosetta.Pose, name: str) -> Dict[str, Union[int, float, List[Dict[str, str]]]]:
+        """
+        Assumes pose is aligned already.
+        """
+        scorefxn = pyrosetta.get_fa_scorefxn()
+        new_len: int = pose.total_residue()
+        sequence = pose.sequence()
+        info = {'name': name, 'length': new_len,
+                'monomer_score': scorefxn(pose), 'sequence': sequence,
+                'pI': ProtParam.ProteinAnalysis(sequence).isoelectric_point(),
+                'error': '', 'error_msg': ''}
+        complex: pyrosetta.Pose = pose.clone()
+        self.add_chain(complex, self.others)
+        self.disulfides2alanine(complex)
+        info['complex_score'] = scorefxn(complex)
+        res_sele = prc.select.residue_selector
+        chainA = res_sele.ChainSelector('A')
+        for distance in (4, 5, 6, 8, 10, 12):
+            close_residues = prc.select.get_residues_from_subset(
+                res_sele.NeighborhoodResidueSelector(chainA, distance, False).apply(complex))
+            info[f'N_close_residues_{distance}'] = len(close_residues)
+            info[f'close_residues_{distance}'] = [self.get_ref_info(r, new_len) for r in close_residues]
+        # info['complex'] = test
+        # complex.dump_pdb(f'/data/outerhome/tmp/complexes/{name}_complex.pdb')
+        return info
+
+
 
 # ---- Load reference pose -----
 
 others: pyrosetta.Pose = pyrosetta.pose_from_file('woA_crysalin_lattice.pdb')
-Analyse.disulfides2alanine(others)
+Analyse.disulfides2alanine(others)  # this no longer is necessary
 ref_chainB = others.split_by_chain(1)
 print('chain B', ref_chainB.total_residue(), ref_chainB.total_atoms())
 
 ref: pyrosetta.Pose = pyrosetta.pose_from_file('crysalin_lattice.pdb')
 Analyse.disulfides2alanine(ref)
 
-trihemi = pyrosetta.pose_from_pdb('trikaihemimer.pdb')
+trihemi = pyrosetta.pose_from_pdb('pentakaihemimer.relax.pdb')
 mini_others = Analyse.make_woA(trihemi)
 
 analyse = Analyse(ref=ref, others=others)
@@ -71,10 +150,10 @@ def run_process(path: Path):
     tick = time.time()
     # read and align
     pose: pyrosetta.Pose = pyrosetta.pose_from_file(path.as_posix())
-    rmsd = align_crop(pose, ref_chainB)
+    rmsd = superpose_pose_by_chain(pose, ref_chainB, 'B')
     score['rmsd'] = rmsd
     assert rmsd < 1., 'Something went wrong with alignment'
-    mini: pyrosetta.Pose = pose.clone()
+    mini: pyrosetta.Pose = pose.split_by_chain(1).clone()
     Analyse.add_chain(mini, mini_others)
     if test_one_of_each:
         mini.dump_pdb(f'{name}_minicomplex.pdb')

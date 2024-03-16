@@ -11,7 +11,7 @@ from Bio.SeqUtils import ProtParam
 
 prc: ModuleType = pyrosetta.rosetta.core
 prp: ModuleType = pyrosetta.rosetta.protocols
-pru: ModuleType = pyrosetta.rosetta.utility
+pru: ModuleType = pyrosetta.rosetta.utility  # noqa
 prn: ModuleType = pyrosetta.rosetta.numeric
 prs: ModuleType = pyrosetta.rosetta.std  # noqa
 pr_conf: ModuleType = pyrosetta.rosetta.core.conformation
@@ -37,29 +37,15 @@ def init_pyrosetta(detect_disulf=False):
     pr_options.set_boolean_option('in:detect_disulf', detect_disulf)
     return logger
 
-def get_pose_break(pose) -> int:
-    """
-    If the job failed, the pose will have a large distance between C and N atoms.
-    Only first chain is considered.
-    Returns the Fortran-style residue numbering of the first break found.
-    Else returns 0
-
-    :param pose:
-    :return: index of the first break or zero
-    """
-    for i in range(1, pose.split_by_chain(1).total_residue() - 1):
-        n_xyz: prn.xyzVector_double_t = pose.residue(i).xyz('C')
-        c_xyz: prn.xyzVector_double_t = pose.residue(i+1).xyz('N')
-        d: float = n_xyz.distance(c_xyz)
-        if d > 1.5:
-            return i
-    else:
-        return 0
-
 
 def add_chain(built: pyrosetta.Pose, new: pyrosetta.Pose, reset: bool = False) -> None:
     """
     Add a chain ``new`` to a pose ``built`` preserving the residue numbering.
+
+    :param built: this is the pyrosetta.Pose that will be built into...
+    :param new: the addendum
+    :param reset: resets the PDBInfo for the chain present to A
+    :return:
     """
     built_pi = built.pdb_info()
     if built_pi is None or reset:
@@ -67,13 +53,15 @@ def add_chain(built: pyrosetta.Pose, new: pyrosetta.Pose, reset: bool = False) -
         built.pdb_info(built_pi)
         for r in range(1, built.total_residue() + 1):
             built_pi.set_resinfo(res=r, chain_id='A', pdb_res=r)
-    built_pi.obsolete(False)
     for chain in new.split_by_chain():
         offset: int = built.total_residue()
         pyrosetta.rosetta.core.pose.append_pose_to_pose(built, chain, new_chain=True)
         chain_pi = chain.pdb_info()
         for r in range(1, chain.total_residue() + 1):
             built_pi.set_resinfo(res=r + offset, chain_id=chain_pi.chain(r), pdb_res=chain_pi.number(r))
+    built_pi.obsolete(False)
+
+
 
 def fix_pdb(pose: pyrosetta):
     """
@@ -90,172 +78,26 @@ def fix_pdb(pose: pyrosetta):
         if chain_letter != previous_chain:
             previous_max = r - 1
             previous_chain = chain_letter
-        pi.set_chain(r, chain_letter)
-        pi.set_number(r, r - previous_max)
+        pi.chain(r, chain_letter)
+        pi.number(r, r - previous_max)
     pi.obsolete(False)
 
-def extract_not_chainA(pose: pyrosetta.Pose) -> pyrosetta.Pose:
-    others: pyrosetta.Pose
-    for ci, c in enumerate(pose.split_by_chain()):
-        if ci == 0:
-            continue
-        elif ci == 1:
-            others = c
-        else:
-            add_chain(others, c)
-    return others
+def rename_chain(pose: pyrosetta.Pose, chain: str) -> None:
+    pi: prc.pose.PDBInfo = pose.pdb_info()
+    for r in range(1, pose.total_residue() + 1):
+        pi.chain(r, chain)
+    pi.obsolete(False)
 
+# ------------------------------------------------------------------------------------
+# Superposition
 
-def get_chainA_per_residue(pose: pyrosetta.Pose) -> List[float]:
+def align_for_atom_map(mobile: pyrosetta.Pose, ref: pyrosetta.Pose) -> Dict[int, int]:
     """
-    Get the score per residue...
-    This is not fixed for Hbond halving, but that is actually good
-    """
-    scorefxn: pyrosetta.ScoreFunction = pyrosetta.get_fa_scorefxn()
-    chainA: pyrosetta.Pose = pose.split_by_chain(1)
-    residue_scores: List[float] = []
-    for i in ph.pose_range(chainA):
-        v = pru.vector1_bool(pose.total_residue())
-        v[i] = 1
-        residue_scores.append(scorefxn.get_sub_score(pose, v))
-    return residue_scores
-
-
-def ammend_pdbblock(pdbblock, info) -> str:
-    lines = pdbblock.split('\n')
-    lines.insert(1, f'TITLE     {info["name"]}')
-    lines.insert(3, f'REMARK   2    group: {info["group"]}')
-    lines.insert(4, f'REMARK   3 subgroup: {info["subgroup"]}')
-    i = 5
-    while True:
-        if 'ATOM' in lines[i]:
-            break
-        i += 1
-    for key in ('complex_dG', 'chainA_dG', 'other_dG',):
-        lines.insert(i, f'REMARK 250 {key: >12}: {info[key]:.1f} kcal/mol')
-        i += 1
-    lines.insert(i, f'REMARK 250  max_residue: {max(info["per_residue"]):.1f} kcal/mol')
-    lines.insert(i + 1, f'REMARK 250  wo_strep: {info["wo_strep"]:.1f} kcal/mol')
-    return '\n'.join(lines)
-
-
-def read_metadata(pdbblock: str) -> dict:
-    if 'TITLE ' not in pdbblock:
-        return {}
-    info = {}
-    info['name'] = re.search(r'TITLE\s+(.*)', pdbblock).group(1).strip()
-    for k, v in re.findall(r'REMARK\s+\d+\s+(\w+):\s+([\d.\-+]+)', pdbblock):
-        info[k] = float(v)
-    return info
-
-
-def rosetta_pdb_to_df(pdbblock: str) -> pd.DataFrame:
-    parsable = False
-    _data = []
-    for line in pdbblock.split('\n'):
-        if '#BEGIN_POSE_ENERGIES_TABLE' in line:
-            parsable = True
-            continue
-        elif '#END_POSE_ENERGIES_TABLE' in line:
-            break
-        elif not parsable:
-            continue
-        parts = line.strip().split()
-        if parts[0] == 'label':
-            _data.append(parts)
-        elif parts[0] == 'weights':
-            _data.append([parts[0]] + list(map(float, parts[1:-1])) + [float('nan')])
-        else:
-            _data.append([parts[0]] + list(map(float, parts[1:])))
-    data = pd.DataFrame(_data)
-    data.columns = data.iloc[0]
-    data = data.iloc[1:].copy()
-    return data
-
-
-def get_pdbblock(name):
-    path = Path(f'output_MPNN/pdbs/{name}.pdb')
-    path2 = Path(f'output_MPNN2/pdbs/{name}.pdb')
-    if path.exists():
-        return path.read_text()
-    elif path2.exists():
-        return path2.read_text()
-    else:
-        raise Exception(name)
-
-
-def align_pose_to_ref_by_chain(pose, ref, chain: str) -> float:
-    atom_map = pyrosetta.rosetta.std.map_core_id_AtomID_core_id_AtomID()
-    chain_sele: pr_res.ResidueSelector = pr_res.ChainSelector(chain)
-    for r, m in zip(pr_res.selection_positions(chain_sele.apply(ref)),
-                    pr_res.selection_positions(chain_sele.apply(pose))
-                    ):
-        ref_atom = pyrosetta.AtomID(ref.residue(r).atom_index("CA"), r)
-        mobile_atom = pyrosetta.AtomID(pose.residue(m).atom_index("CA"), m)
-        atom_map[mobile_atom] = ref_atom
-    return prc.scoring.superimpose_pose(mod_pose=pose, ref_pose=ref, atom_map=atom_map)
-
-
-def extract_wo_strep(pose):
-    chains = pose.split_by_chain()
-    wo = chains[1]
-    for i, c in enumerate(chains):
-        if i == 0:
-            continue
-        if 'MEAGIT' in c.sequence():
-            continue
-        add_chain(wo, c)
-    return wo
-
-
-def extract_streps(pose):
-    """
-    This is just for the ref value: -318.5261163127267 (not minimized)
-    """
-    chains = pose.split_by_chain()
-    w = chains[2]
-    for i, c in enumerate(chains):
-        if i == 1:
-            continue
-        if 'MEAGIT' not in c.sequence():
-            continue
-        add_chain(w, c)
-    return w
-
-
-def movement(original: pyrosetta.Pose,
-             trials: int = 100, temperature: int = 1.0, replicate_number: int = 20) -> List[float]:
-    """
-    This method is adapted from my one in pyrosetta-help
-    """
-    scorefxn = pyrosetta.get_fa_scorefxn()
-    backrub = pyrosetta.rosetta.protocols.backrub.BackrubMover()
-    monégasque = pyrosetta.rosetta.protocols.monte_carlo.GenericMonteCarloMover(maxtrials=trials,
-                                                                                max_accepted_trials=trials,
-                                                                                # gen.max_accepted_trials() = 0
-                                                                                task_scaling=5,
-                                                                                # gen.task_scaling()
-                                                                                mover=backrub,
-                                                                                temperature=temperature,
-                                                                                sample_type='low',
-                                                                                drift=True)
-    monégasque.set_scorefxn(scorefxn)
-    # find most deviant
-    rs = []
-    for i in range(replicate_number):
-        variant = original.clone()
-        monégasque.apply(variant)
-        if monégasque.accept_counter() > 0:
-            rs.append(pr_scoring.bb_rmsd(variant, original))
-        else:
-            rs.append(float('nan'))
-    return rs
-
-
-def align_crop(pose: pyrosetta.Pose, ref: pyrosetta.Pose, verbose=False) -> float:
-    """
-    Superpose ``pose`` on ``ref`` based on Pairwise alignment and superposition of CA
-    Then crops all residues starting from it. In place.
+    Pairwise alignment of the sequences of the poses.
+    return  (ref_index, mobile_index)
+    :param mobile:
+    :param ref:
+    :return:
     """
     # pad with '-' to make it faux-local alignment and deal with Fortran counting does not work '-' is a match not gap
     # hence the silly +1s and the PairwiseAligner settings
@@ -267,131 +109,152 @@ def align_crop(pose: pyrosetta.Pose, ref: pyrosetta.Pose, verbose=False) -> floa
     aligner.target_right_gap_score = 0.
     aligner.target_right_extend_gap_score = 0.
     ref_seq: str = ref.sequence()
-    pose_seq: str = pose.sequence()
+    pose_seq: str = mobile.sequence()
     aln: Alignment = aligner.align(ref_seq, pose_seq)[0]
-    if verbose:
-        print(aln)
-    aln_map = {t: q for t, q in zip(aln.indices[0], aln.indices[1]) if
+    return {t: q for t, q in zip(aln.indices[0], aln.indices[1]) if
                q != -1 and t != -1 and ref_seq[t] == pose_seq[q]}
-    if verbose:
-        print(aln_map)
-    # ## make pyrosetta map
-    atom_map = pyrosetta.rosetta.std.map_core_id_AtomID_core_id_AtomID()
-    for r, m in aln_map.items():
-        ref_atom = pyrosetta.AtomID(ref.residue(r + 1).atom_index("CA"), r + 1)
-        mobile_atom = pyrosetta.AtomID(pose.residue(m + 1).atom_index("CA"), m + 1)
+
+
+def superpose_pose_by_chain(pose, ref, chain: str) -> float:
+    """
+    superpose by PDB chain letter
+
+    :param pose:
+    :param ref:
+    :param chain:
+    :return:
+    """
+    atom_map = prs.map_core_id_AtomID_core_id_AtomID()
+    chain_sele: pr_res.ResidueSelector = pr_res.ChainSelector(chain)
+    for r, m in zip(pr_res.selection_positions(chain_sele.apply(ref)),
+                    pr_res.selection_positions(chain_sele.apply(pose))
+                    ):
+        assert pose.residue(m) == ref.residue(r), 'Mismatching residue positions!'
+        ref_atom = pyrosetta.AtomID(ref.residue(r).atom_index("CA"), r)
+        mobile_atom = pyrosetta.AtomID(pose.residue(m).atom_index("CA"), m)
         atom_map[mobile_atom] = ref_atom
-    # return RMSD
-    rmsd = prc.scoring.superimpose_pose(mod_pose=pose, ref_pose=ref, atom_map=atom_map)
-    pyrosetta.rosetta.protocols.grafting.delete_region(pose, next(iter(aln_map.values())), pose.total_residue())
+    return prc.scoring.superimpose_pose(mod_pose=pose, ref_pose=ref, atom_map=atom_map)
+
+def superpose_pose_by_alt_chains(pose, ref, pose_chain: str, ref_chain: str) -> float:
+    """
+    superpose by PDB chain letter
+
+    :param pose:
+    :param ref:
+    :param chain:
+    :return:
+    """
+    atom_map = prs.map_core_id_AtomID_core_id_AtomID()
+    pose_chain_sele: pr_res.ResidueSelector = pr_res.ChainSelector(pose_chain)
+    ref_chain_sele: pr_res.ResidueSelector = pr_res.ChainSelector(ref_chain)
+    for r, m in zip(pr_res.selection_positions(ref_chain_sele.apply(ref)),
+                    pr_res.selection_positions(pose_chain_sele.apply(pose))
+                    ):
+        assert pose.residue(m) == ref.residue(r), 'Mismatching residue positions!'
+        ref_atom = pyrosetta.AtomID(ref.residue(r).atom_index("CA"), r)
+        mobile_atom = pyrosetta.AtomID(pose.residue(m).atom_index("CA"), m)
+        atom_map[mobile_atom] = ref_atom
+    return prc.scoring.superimpose_pose(mod_pose=pose, ref_pose=ref, atom_map=atom_map)
+
+def superpose_by_seq_alignment(mobile: pyrosetta.Pose, ref: pyrosetta.Pose) -> float:
+    """
+    Superpose ``pose`` on ``ref`` based on Pairwise alignment and superposition of CA
+
+    :param mobile:
+    :param ref:
+    :param verbose:
+    :return:
+    """
+
+    aln_map = align_for_atom_map(mobile, ref)
+    rmsd: float = superpose(ref=ref, mobile=mobile, aln_map=aln_map)
     return rmsd
 
-
-class Analyse:
-    def __init__(self, ref: pyrosetta.Pose, others: pyrosetta.Pose):
-        self.others = others
-        self.disulfides2alanine(others)
-        self.disulfides2alanine(ref)
-        pi = ref.pdb_info()
-        self._ref_info: List[str] = [''] + [pi.pose2pdb(i) for i in range(1, 1 + ref.total_residue())]
-        self.ref_chainA: pyrosetta.Pose = ref.split_by_chain(1)
-        self._ref_chainA_len: int = self.ref_chainA.total_residue()
-
-    @staticmethod
-    def disulfides2alanine(pose):
-        """
-        Replaces disulfides with alanines.
-        """
-        disulfide_res = prc.select.residue_selector.ResidueNameSelector("CYS:disulfide")
-        for resi in prc.select.get_residues_from_subset(disulfide_res.apply(pose)):
-            prp.simple_moves.MutateResidue(target=resi, new_res='ALA').apply(pose)
-
-    @staticmethod
-    def add_chain(built: pyrosetta.Pose, new: pyrosetta.Pose) -> None:
-        """
-        Add a chain ``new`` to a pose ``built`` preserving the residue numbering.
-        """
-        for chain in new.split_by_chain():
-            pyrosetta.rosetta.core.pose.append_pose_to_pose(built, chain, new_chain=True)
-            built_pi = built.pdb_info()
-            chain_pi = chain.pdb_info()
-            for r in range(1, chain.total_residue() + 1):
-                offset: int = built.total_residue()
-                built_pi.set_resinfo(res=r + offset, chain_id=chain_pi.chain(r), pdb_res=chain_pi.number(r))
-        built_pi.obsolete(False)
-
-    @classmethod
-    def make_woA(cls, original_pose: pyrosetta.Pose) -> pyrosetta.Pose:
-        chains: pru.vector1_std_shared_ptr_core_pose_Pose_t = original_pose.split_by_chain()
-        others: pyrosetta.Pose = chains[2].clone()
-        for c in range(3, len(chains) + 1):
-            cls.add_chain(others, chains[c])
-        return others
-
-    def get_ref_info(self, resi: int, new_len: int) -> str:
-        """
-        Converts the residue number to the PDB numbering of the reference.
-        """
-        return self._ref_info[resi + new_len - self._ref_chainA_len]
-
-    def __call__(self, pose: pyrosetta.Pose, name: str) -> Dict[str, Union[int, float, List[Dict[str, str]]]]:
-        """
-        Assumes pose is aligned already.
-        """
-        scorefxn = pyrosetta.get_fa_scorefxn()
-        new_len: int = pose.total_residue()
-        sequence = pose.sequence()
-        info = {'name': name, 'length': new_len,
-                'monomer_score': scorefxn(pose), 'sequence': sequence,
-                'pI': ProtParam.ProteinAnalysis(sequence).isoelectric_point(),
-                'error': '', 'error_msg': ''}
-        complex: pyrosetta.Pose = pose.clone()
-        self.add_chain(complex, self.others)
-        self.disulfides2alanine(complex)
-        info['complex_score'] = scorefxn(complex)
-        res_sele = prc.select.residue_selector
-        chainA = res_sele.ChainSelector('A')
-        for distance in (4, 5, 6, 8, 10, 12):
-            close_residues = prc.select.get_residues_from_subset(
-                res_sele.NeighborhoodResidueSelector(chainA, distance, False).apply(complex))
-            info[f'N_close_residues_{distance}'] = len(close_residues)
-            info[f'close_residues_{distance}'] = [self.get_ref_info(r, new_len) for r in close_residues]
-        # info['complex'] = test
-        # complex.dump_pdb(f'/data/outerhome/tmp/complexes/{name}_complex.pdb')
-        return info
-
-
-
-def superpose(ref: pyrosetta.Pose, mobile: pyrosetta.Pose, aln_map: Optional[Dict[int, int]] = None) -> float:
+def superpose(ref: pyrosetta.Pose, mobile: pyrosetta.Pose, aln_map: Optional[Dict[int, int]] = None, zero_based=True) -> float:
+    """
+    Superpose ``mobile`` on ``ref`` based on CA of indices in ``aln_map`` (ref_indices, mobile_indices).
+    Indices are 0-based.
+    :param ref:
+    :param mobile:
+    :param aln_map:
+    :return:
+    """
+    offset = 1 if zero_based else 0
     if aln_map is None:
         aln_map = dict(zip(range(1, ref.total_residue() + 1), range(1, mobile.total_residue() + 1)))
     # ## make pyrosetta map
     atom_map = prs.map_core_id_AtomID_core_id_AtomID()
     for r, m in aln_map.items():
-        ref_atom = pyrosetta.AtomID(ref.residue(r + 1).atom_index("CA"), r + 1)
-        mobile_atom = pyrosetta.AtomID(mobile.residue(m + 1).atom_index("CA"), m + 1)
+        ref_atom = pyrosetta.AtomID(ref.residue(r + offset).atom_index("CA"), r + offset)
+        mobile_atom = pyrosetta.AtomID(mobile.residue(m + offset).atom_index("CA"), m + offset)
         atom_map[mobile_atom] = ref_atom
     # return RMSD
     return prc.scoring.superimpose_pose(mod_pose=mobile, ref_pose=ref, atom_map=atom_map)
 
 
-def relax(pose: pyrosetta.Pose, others, cycles=1):
+# ------------------------------------------------------------------------------------
+# streptavidin extraction
+
+def extract_wo_streptavidins(pose):
+    chains = pose.split_by_chain()
+    wo = chains[1]
+    for i, c in enumerate(chains):
+        if i == 0:
+            continue
+        if 'MEAGIT' in c.sequence():
+            continue
+        add_chain(wo, c)
+    return wo
+
+
+def extract_streptavidins(pose, cardinality=4):
+    """
+    This will extract the tetramer (``cardinality=4``) or dimer (``cardinality=4``)
+    """
+    chains = pose.split_by_chain()
+    streptavidins: Union[None, pyrosetta.Pose] = None
+    for i, c in enumerate(chains):
+        if cardinality == 0:
+            break
+        elif 'MEAGIT' not in c.sequence():
+            continue
+        elif streptavidins is None:
+            streptavidins = c
+            cardinality -= 1
+        else:
+            cardinality -= 1
+            add_chain(streptavidins, c)
+    return streptavidins
+
+# ------------------------------------------------------------------------------------
+# other ops
+
+
+def combine_and_relax(pose: pyrosetta.Pose, others, cycles=1):
     add_chain(pose, others)
     scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
     dG_others = scorefxn(others)
+    relax_chainA(pose, cycles)
+    return scorefxn(pose) - dG_others
+
+def relax_chainA(pose: pyrosetta.Pose, cycles=1, distance=5, scorefxn=None):
+    if scorefxn is None:
+        scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
+    relax = pyrosetta.rosetta.protocols.relax.FastRelax(scorefxn, cycles)
+    movemap = pyrosetta.MoveMap()
     rs: ModuleType = prc.select.residue_selector
     chainA_sele: rs.ResidueSelectorr = rs.ChainSelector('A')
     chainA: pru.vector1_bool = chainA_sele.apply(pose)
-    neigh_sele: rs.ResidueSelector = prc.select.residue_selector.NeighborhoodResidueSelector(chainA_sele, True, 5)
-    neighs: pru.vector1_bool = neigh_sele.apply(pose)
-    relax = pyrosetta.rosetta.protocols.relax.FastRelax(scorefxn, cycles)
-    movemap = pyrosetta.MoveMap()
+    if distance > 0:
+        neigh_sele: rs.ResidueSelector = rs.NeighborhoodResidueSelector(chainA_sele, True, distance)
+        neighs: pru.vector1_bool = neigh_sele.apply(pose)
+        movemap.set_chi(neighs)
+    else:
+        movemap.set_chi(chainA)
     movemap.set_bb(chainA)
-    movemap.set_chi(neighs)
-    movemap.set_jump(chainA)
+    movemap.set_jump(False)
     relax.set_movemap(movemap)
     relax.apply(pose)
-    return scorefxn(pose) - dG_others
 
 
 def thread(template_block, target_seq, target_name, template_name, temp_folder='/data/outerhome/tmp'):
@@ -441,7 +304,7 @@ def create_design_tf(pose:pyrosetta.Pose, design_sele: pr_res.ResidueSelector, d
     relax.set_enable_design(True)
     relax.set_task_factory(task_factory)
     """
-    residues_to_design = design_sele.apply(pose)
+    #residues_to_design = design_sele.apply(pose)
     # this is default:
     # design_ops = prc.pack.task.operation.OperateOnResidueSubset(????, residues_to_design)
     # No design, but repack
@@ -477,11 +340,29 @@ def design_interface_onA(pose: pyrosetta.Pose, distance: int, cycles = 5, scoref
     relax.set_task_factory(task_factory)
     relax.apply(pose)
 
-def score_interface(complex: pyrosetta.Pose, interface: str):
+def design_different(pose: pyrosetta.Pose, ref: pyrosetta.Pose, cycles = 5, scorefxn=None):
+    ref = ref.split_by_chain(1)
+    ref2pose: dict = align_for_atom_map(pose.split_by_chain(1), ref)
+    conserved = list(ref2pose.values())
+    idx_sele = pr_res.ResidueIndexSelector()
+    for i in range(1, len(pose.chain_sequence(1))):
+        if i not in conserved:
+            idx_sele.append_index(i)
+    print(idx_sele.apply(pose))
+    task_factory: prc.pack.task.TaskFactory = create_design_tf(pose, design_sele=idx_sele, distance=0)
+    if scorefxn is None:
+        scorefxn = pyrosetta.get_fa_scorefxn()
+    relax = pyrosetta.rosetta.protocols.relax.FastRelax(scorefxn, cycles)
+    relax.set_enable_design(True)
+    relax.set_task_factory(task_factory)
+    relax.apply(pose)
+
+def score_interface(complex: Union[pyrosetta.Pose, Sequence[pyrosetta.Pose]], interface: str):
     if isinstance(complex, Sequence):
-        complex = complex[0].clone()
+        _complex = complex[0].clone()
         for c in complex[1:]:
-            add_chain(complex, c)
+            add_chain(_complex, c)
+        complex = _complex
     ia = pyrosetta.rosetta.protocols.analysis.InterfaceAnalyzerMover(interface)
     ia.apply(complex)
     return {'complex_energy': ia.get_complex_energy(),
@@ -490,3 +371,194 @@ def score_interface(complex: pyrosetta.Pose, interface: str):
             'crossterm_interface_energy': ia.get_crossterm_interface_energy(),
             'interface_dG': ia.get_interface_dG(),
             'interface_delta_sasa': ia.get_interface_delta_sasa()}
+
+
+def rosetta_pdb_to_df(pdbblock: str) -> pd.DataFrame:
+    parsable = False
+    _data = []
+    for line in pdbblock.split('\n'):
+        if '#BEGIN_POSE_ENERGIES_TABLE' in line:
+            parsable = True
+            continue
+        elif '#END_POSE_ENERGIES_TABLE' in line:
+            break
+        elif not parsable:
+            continue
+        parts = line.strip().split()
+        if parts[0] == 'label':
+            _data.append(parts)
+        elif parts[0] == 'weights':
+            _data.append([parts[0]] + list(map(float, parts[1:-1])) + [float('nan')])
+        else:
+            _data.append([parts[0]] + list(map(float, parts[1:])))
+    data = pd.DataFrame(_data)
+    data.columns = data.iloc[0]
+    data = data.iloc[1:].copy()
+    return data
+
+# -------- constraints
+def constrain_chainbreak(pose, chain_break, x0_in=1.334, sd_in=0.2, tol_in=0.02):
+    AtomPairConstraint = pr_scoring.constraints.AtomPairConstraint  # noqa
+    fore_c = pyrosetta.AtomID(atomno_in=pose.residue(chain_break).atom_index('C'),
+                                rsd_in=chain_break)
+    aft_n = pyrosetta.AtomID(atomno_in=pose.residue(chain_break + 1).atom_index('N'),
+                              rsd_in=chain_break + 1)
+    fun = pr_scoring.func.FlatHarmonicFunc(x0_in=x0_in, sd_in=sd_in, tol_in=tol_in)
+    con = AtomPairConstraint(fore_c, aft_n, fun)
+    pose.add_constraint(con)
+
+def freeze_atom(pose: pyrosetta.Pose, frozen_index: int, ref_index: int, x0_in=0., sd_in=0.01):
+    ref_ca = pyrosetta.AtomID(atomno_in=pose.residue(ref_index).atom_index('CA'), rsd_in=ref_index)
+    frozen_ca = pyrosetta.AtomID(atomno_in=pose.residue(frozen_index).atom_index('CA'), rsd_in=frozen_index)
+    frozen_xyz = pose.residue(frozen_index).xyz(frozen_ca.atomno())
+    fun = pr_scoring.func.HarmonicFunc(x0_in=x0_in, sd_in=sd_in)
+    con = pr_scoring.constraints.CoordinateConstraint(a1=frozen_ca, fixed_atom_in=ref_ca, xyz_target_in=frozen_xyz, func=fun, scotype=pr_scoring.ScoreType.coordinate_constraint)
+    pose.add_constraint(con)
+
+# -------- other issues
+
+def get_pose_break(pose: pyrosetta.Pose) -> int:
+    """
+    If the job failed, the pose will have a large distance between C and N atoms.
+    Only first chain is considered.
+    Returns the Fortran-style residue numbering of the first break found.
+    Else returns 0
+
+    :param pose:
+    :return: index of the first break or zero
+    """
+    for i in range(1, pose.split_by_chain(1).total_residue() - 1):
+        n_xyz: prn.xyzVector_double_t = pose.residue(i).xyz('C')
+        c_xyz: prn.xyzVector_double_t = pose.residue(i+1).xyz('N')
+        d: float = n_xyz.distance(c_xyz)
+        if d > 1.5:
+            return i
+    else:
+        return 0
+
+
+def extract_not_chainA(pose: pyrosetta.Pose) -> pyrosetta.Pose:
+    others: pyrosetta.Pose
+    for ci, c in enumerate(pose.split_by_chain()):
+        if ci == 0:
+            continue
+        elif ci == 1:
+            others = c
+        else:
+            add_chain(others, c)
+    return others
+
+def transpant_CTD(target: pyrosetta.Pose, addendum: pyrosetta.Pose, start_seq='FKDETET') -> pyrosetta.Pose:
+    addendum = addendum.split_by_chain(1)
+    pyrosetta.rosetta.protocols.grafting.delete_region(addendum, 1, addendum.sequence().find(start_seq) + 1)
+    junction_idx = target.sequence().find(start_seq)
+    collage = pyrosetta.rosetta.protocols.grafting.return_region(target, 1, junction_idx + 1)
+    pyrosetta.rosetta.core.pose.append_pose_to_pose(collage, addendum, False)
+    # PDB needs resetting
+    pi = collage.pdb_info()
+    for r in range(1, collage.total_residue()+1):
+        pi.chain(r, 'A')
+        pi.number(r, r)
+    return collage
+
+def get_chainA_per_residue(pose: pyrosetta.Pose) -> List[float]:
+    """
+    Get the score per residue...
+    This is not fixed for Hbond halving, but that is actually good in this case as it is a negative filter
+    """
+    scorefxn: pyrosetta.ScoreFunction = pyrosetta.get_fa_scorefxn()
+    chainA: pyrosetta.Pose = pose.split_by_chain(1)
+    residue_scores: List[float] = []
+    for i in ph.pose_range(chainA):
+        v = pru.vector1_bool(pose.total_residue())
+        v[i] = 1
+        residue_scores.append(scorefxn.get_sub_score(pose, v))
+    return residue_scores
+
+
+
+def movement(original: pyrosetta.Pose,
+             trials: int = 100, temperature: int = 1.0, replicate_number: int = 20) -> List[float]:
+    """
+    This method is adapted from my one in pyrosetta-help
+    """
+    scorefxn = pyrosetta.get_fa_scorefxn()
+    backrub = pyrosetta.rosetta.protocols.backrub.BackrubMover()
+    monégasque = pyrosetta.rosetta.protocols.monte_carlo.GenericMonteCarloMover(maxtrials=trials,
+                                                                                max_accepted_trials=trials,
+                                                                                # gen.max_accepted_trials() = 0
+                                                                                task_scaling=5,
+                                                                                # gen.task_scaling()
+                                                                                mover=backrub,
+                                                                                temperature=temperature,
+                                                                                sample_type='low',
+                                                                                drift=True)
+    monégasque.set_scorefxn(scorefxn)
+    # find most deviant
+    rs = []
+    for i in range(replicate_number):
+        variant = original.clone()
+        monégasque.apply(variant)
+        if monégasque.accept_counter() > 0:
+            rs.append(pr_scoring.bb_rmsd(variant, original))
+        else:
+            rs.append(float('nan'))
+    return rs
+
+
+
+# ------------------------------------------------------------------------------------
+# Metadata test
+
+def ammend_pdbblock(pdbblock, info) -> str:
+    """
+    An attempt at storing metadata in the PDB
+
+    :param pdbblock:
+    :param info:
+    :return:
+    """
+    lines = pdbblock.split('\n')
+    lines.insert(1, f'TITLE     {info["name"]}')
+    lines.insert(3, f'REMARK   2    group: {info["group"]}')
+    lines.insert(4, f'REMARK   3 subgroup: {info["subgroup"]}')
+    i = 5
+    while True:
+        if 'ATOM' in lines[i]:
+            break
+        i += 1
+    for key in ('complex_dG', 'chainA_dG', 'other_dG',):
+        lines.insert(i, f'REMARK 250 {key: >12}: {info[key]:.1f} kcal/mol')
+        i += 1
+    lines.insert(i, f'REMARK 250  max_residue: {max(info["per_residue"]):.1f} kcal/mol')
+    lines.insert(i + 1, f'REMARK 250  wo_strep: {info["wo_strep"]:.1f} kcal/mol')
+    return '\n'.join(lines)
+
+
+def read_metadata(pdbblock: str) -> dict:
+    if 'TITLE ' not in pdbblock:
+        return {}
+    info = {}
+    info['name'] = re.search(r'TITLE\s+(.*)', pdbblock).group(1).strip()
+    for k, v in re.findall(r'REMARK\s+\d+\s+(\w+):\s+([\d.\-+]+)', pdbblock):
+        info[k] = float(v)
+    return info
+
+# ------------------------------------------------------------------------------------
+
+
+def get_pdbblock(name):
+    """
+    A problem arising from iterations...
+
+    :param name:
+    :return:
+    """
+    path = Path(f'output_MPNN/pdbs/{name}.pdb')
+    path2 = Path(f'output_MPNN2/pdbs/{name}.pdb')
+    if path.exists():
+        return path.read_text()
+    elif path2.exists():
+        return path2.read_text()
+    else:
+        raise Exception(name)

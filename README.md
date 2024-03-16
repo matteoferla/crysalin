@@ -101,7 +101,7 @@ Three sub-experiments were run:
 
 ## Filtering
 
-See [filtering](code/filter.py) for the filtering scripts
+See [filtering](code/filter_original.py) for the filtering scripts
 
 Even if the models are polyglycine, they can be used to tell if there are clashes.
 Here is a prelimary plot of progress of the generated models:
@@ -115,7 +115,7 @@ In the filtering removing models non-forming interactions was important.
 
 The helper scripts for ProteinMPNN do not allow variable length protein and are a bit awkward to use.
 The [functional_proteinMPNN_helper.py](code/functional_proteinMPNN_helper.py) is a refactored version called by 
-[prep_MPNN.py](code/prep_MPNN.py).
+[prep_MPNN.py](code/prep_MPNN_original.py).
 
 ## Threading & relaxing
 

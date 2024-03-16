@@ -1,13 +1,13 @@
 """
 $INSERTION_LEN
-$EXPERIMENT ins139_141 ins59_61 ins36_41
+$EXPERIMENT ins139_141 ins59_61 ins36_41 fillNADPH
 """
 
 
 # check input is correct
 import os
 
-exp_names = ['ins139_141', 'ins59_61', 'ins36_41']
+exp_names = ['ins139_141', 'ins59_61', 'ins36_41', 'fillNADPH']
 exp_name = os.environ.get('EXPERIMENT', '')
 if exp_name not in exp_names:
     raise ValueError(f'{exp_name} not in {exp_names}')
@@ -19,11 +19,11 @@ else:
 n_trials = 1_000
 quick_and_dirty = False
 generic_aa = 'G'
-dr_cycles = 3  # default 3
+dr_cycles = 12  # default 3
 max_linear_chainbreak = 0.2  # default 0.07
 redesign_loop_neighborhood = False
 outfolder = 'output_remodel'
-timeout = 60 * 60
+timeout = 12 * 60 * 60
 n_insertions = int(os.environ.get('INSERTION_LEN', 4))
 
 os.makedirs(outfolder, exist_ok=True)
@@ -42,7 +42,7 @@ from collections import Counter
 import pebble
 import multiprocessing
 from concurrent.futures import TimeoutError
-from common_pyrosetta import get_pose_break, align_pose_to_ref_by_chain, fix_pdb, score_interface
+from common_pyrosetta import get_pose_break, superpose_pose_by_chain, fix_pdb, score_interface, extract_streptavidins
 
 prc: ModuleType = pyrosetta.rosetta.core
 prp: ModuleType = pyrosetta.rosetta.protocols
@@ -90,6 +90,16 @@ elif exp_name == 'ins36_41':
     blue.rows[37 - 1][2] = 'H'
     for i in range(n_insertions):
         blue.insert_after(37, 'NATAA')
+elif exp_name == 'fillNADPH':
+    blue[26:30] = 'NATAA'
+    blue[82:87] = 'NATAA'
+    blue[109:114] = 'NATAA'
+    for i in range(n_insertions):
+        blue.insert_after(111, 'NATAA')
+    for i in range(n_insertions):
+        blue.insert_after(85, 'NATAA')
+    for i in range(n_insertions):
+        blue.insert_after(28, 'NATAA')
 else:
     raise ValueError(f'{exp_name} unknown')
 
@@ -126,7 +136,7 @@ def run(i):
                                     rsd_in=chain_break)
         aft_n = pyrosetta.AtomID(atomno_in=pose.residue(chain_break + 1).atom_index('N'),
                                   rsd_in=chain_break + 1)
-        fun = pr_scoring.func.HarmonicFun(x0_in=1.334, sd_in=0.2)
+        fun = pr_scoring.func.HarmonicFunc(x0_in=1.334, sd_in=0.2)
         con = AtomPairConstraint(fore_c, aft_n, fun)
         pose.add_constraint(con)
         scorefxn.set_weight(pr_scoring.ScoreType.atom_pair_constraint, 3)
@@ -141,11 +151,11 @@ def run(i):
     pose.dump_pdb(f'{outfolder}/valid/{run_name}.pdb')
     fix_pdb(pose)
     pose.pdb_info().obsolete(False)
-    align_pose_to_ref_by_chain(pose, original, 'B')
+    superpose_pose_by_chain(pose, original, 'B')
     monomer = pose.split_by_chain(1)
     monomer.dump_pdb(f'{outfolder}/relaxed/{run_name}.pdb')
     holo = scorefxn(pose)
-    score_interface(pose, 'A_BC')
+    score_interface([monomer, extract_streptavidins([pose])], 'A_BC')
     apo = sum(map(scorefxn, pose.split_by_chain()))
     return dict(run_name=run_name, seq=pose.sequence(), holo_score=holo, apo_scores=apo, delta_score=holo - apo,
                 error='')
@@ -156,7 +166,7 @@ def run_done(future):
     try:
         result = future.result()  # blocks until results are ready
     except Exception as error:
-        error_msg = error.args[1]
+        error_msg = str(error)
         if isinstance(error, TimeoutError):
             print("Function took longer than %d seconds" % error_msg)
         else:

@@ -1,6 +1,6 @@
 #
 export NEW_CONDA_PREFIX=RFdiffusion2
-export RFDIFFUSSION_CONFIG=$HOME2/.cache/RFdiffusion_config/inference
+export RFDIFFUSION_CONFIG=$HOME2/.cache/RFdiffusion_config/inference
 # use scratch tmp:
 export REPO_ROOT=/data/outerhome/tmp/RFdiffusion
 
@@ -56,7 +56,9 @@ conda install -y nvidia/label/cuda-11.6.2::libcusparse
 conda install -y nvidia/label/cuda-11.6.2::cuda-cudart
 conda install -y nvidia/label/cuda-11.6.2::cuda-cudart-dev
 
-conda env config vars set RFDIFFUSSION_CONFIG=$RFDIFFUSSION_CONFIG $HOME2/.cache/RFdiffusion_config/inference
+export $HOME2/.cache/RFdiffusion_config/inference
+conda env config vars set RFDIFFUSION_CONFIG=$RFDIFFUSION_CONFIG
+
 cp
 
 

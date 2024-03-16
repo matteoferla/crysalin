@@ -12,6 +12,8 @@ for i in {1..5}; do
   condor_submit /data/xchem-fragalysis/shared/target_script.condor;
   export APPTAINERENV_EXPERIMENT=ins36_41
   condor_submit /data/xchem-fragalysis/shared/target_script.condor;
+  export APPTAINERENV_EXPERIMENT=fillNADPH
+  condor_submit /data/xchem-fragalysis/shared/target_script.condor;
 done
 USAGE
 
@@ -27,6 +29,6 @@ echo "Running script ${0} as $USER in $HOST which runs $PRETTY_NAME"
 source /data/xchem-fragalysis/mferla/.bashrc;
 cd $HOME2/crysalin;
 conda activate compchem;
-python $HOME2/crysalin/output/remodel_job.py;
+python $HOME2/crysalin/remodel_job.py;
 
 curl -X POST -H 'Content-type: application/json' --data '{"text":"remodel done'$EXPERIMENT'"}' $SLACK_WEBHOOK

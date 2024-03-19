@@ -1,3 +1,8 @@
+"""
+Given a shortlist, run FastDesign and scoring on each of them.
+"""
+
+
 from common_pyrosetta import (init_pyrosetta, design_interface_onA, superpose_pose_by_chain,
                               relax_chainA,transpant_CTD,constrain_chainbreak,freeze_atom,design_different,
                               extract_not_chainA, add_chain, extract_streptavidins, score_interface)
@@ -48,7 +53,7 @@ def parse(pdb_path: Path) -> dict:
     monomer: pyrosetta.Pose = pyrosetta.pose_from_file(str(pdb_path)).split_by_chain(1)
     ref = pyrosetta.pose_from_file('pentakaihemimer.relax.pdb')
     woA = extract_not_chainA(ref)
-    oligomer = transpant_CTD(monomer, ref, 'KDETET')  # for semantics
+    oligomer: pyrosetta.Pose = transpant_CTD(monomer, ref, 'KDETET')  # for semantics
     add_chain(oligomer, woA)  # as this is in place
     for i in range(1, monomer.sequence().find('KDETET') + 1):
         constrain_chainbreak(oligomer, i)

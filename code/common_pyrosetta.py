@@ -181,7 +181,7 @@ def superpose(ref: pyrosetta.Pose, mobile: pyrosetta.Pose, aln_map: Optional[Dic
     """
     offset = 1 if zero_based else 0
     if aln_map is None:
-        aln_map = dict(zip(range(1, ref.total_residue() + 1), range(1, mobile.total_residue() + 1)))
+        aln_map = dict(zip(range(ref.total_residue()), range(mobile.total_residue())))
     # ## make pyrosetta map
     atom_map = prs.map_core_id_AtomID_core_id_AtomID()
     for r, m in aln_map.items():
@@ -255,6 +255,7 @@ def relax_chainA(pose: pyrosetta.Pose, cycles=1, distance=5, scorefxn=None):
     movemap.set_jump(False)
     relax.set_movemap(movemap)
     relax.apply(pose)
+    return scorefxn(pose)
 
 
 def thread(template_block, target_seq, target_name, template_name, temp_folder='/data/outerhome/tmp'):

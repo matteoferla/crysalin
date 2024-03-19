@@ -244,7 +244,7 @@ if __name__ == '__main__':
     test_one_of_each = False
     # run
     num_cores = multiprocessing.cpu_count()
-    with ProcessPool(max_workers=50, max_tasks=0) as pool:
+    with ProcessPool(max_workers=num_cores-1, max_tasks=0) as pool:
         paths = list(Path('output').glob('*/*.pdb'))
         random.shuffle(paths)
         for path in paths:

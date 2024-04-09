@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-
+import os
 import operator
 import string
 from Bio import SeqIO
 from pathlib import Path
-import re, os
+import re, os, traceback
 from Bio.SeqUtils import ProtParam
 from pebble import ProcessPool, ProcessFuture
 from concurrent.futures import TimeoutError
 import time
+import json
 from typing import Optional, Dict, List
 from types import ModuleType
 import pandas as pd
@@ -22,12 +23,25 @@ prs: ModuleType = pyrosetta.rosetta.std  # noqa
 pr_conf: ModuleType = pyrosetta.rosetta.core.conformation
 pr_scoring: ModuleType = pyrosetta.rosetta.core.scoring
 pr_options: ModuleType = pyrosetta.rosetta.basic.options
+from common_pyrosetta import add_chain, superpose, constrain_chainbreak, freeze_atom, relax_chainA
 
+work_path = Path(os.environ.get('WORKPATH', 'output_redux'))
+template_folder = work_path / 'filtered'
+# annoying mistake:
+seqs_folder = work_path / 'seqs/seqs' if (work_path / 'seqs/seqs').exists() else work_path / 'seqs'
+seq_paths = list(seqs_folder.glob('*.fa'))
+raw_out_path = work_path / 'unrelaxed_pdbs'
+os.makedirs(raw_out_path, exist_ok=True)
+relaxed_out_path = work_path / 'relaxed_pdbs'
+os.makedirs(relaxed_out_path, exist_ok=True)
+i = 0
+while True:
+    csv_path = Path(f'threading_{i}.csv')
+    if not csv_path.exists():
+        break
+    else:
+        i+=1
 
-template_path = Path('output_redux/filtered')
-seq_paths = list(Path('output_redux/seqs').glob('*.fa'))
-out_path = Path('output_redux/pdbs')
-csv_path = Path('threading_redux.csv')
 apo_score = -337.2997472992847
 split_size = 250
 
@@ -49,30 +63,6 @@ pr_options.set_boolean_option('in:detect_disulf', False)
 # --------------------------------
 # Define functions
 
-def add_chain(built: pyrosetta.Pose, new: pyrosetta.Pose) -> None:
-    """
-    Add a chain ``new`` to a pose ``built`` preserving the residue numbering.
-    """
-    offset: int = built.total_residue()
-    for chain in new.split_by_chain():
-        pyrosetta.rosetta.core.pose.append_pose_to_pose(built, chain, new_chain=True)
-        built_pi = built.pdb_info()
-        chain_pi = chain.pdb_info()
-        for r in range(1, chain.total_residue() + 1):
-            built_pi.set_resinfo(res=r + offset, chain_id=chain_pi.chain(r), pdb_res=chain_pi.number(r))
-
-
-def superpose(ref: pyrosetta.Pose, mobile: pyrosetta.Pose, aln_map: Optional[Dict[int, int]] = None) -> float:
-    if aln_map is None:
-        aln_map = dict(zip(range(1, ref.total_residue() + 1), range(1, mobile.total_residue() + 1)))
-    # ## make pyrosetta map
-    atom_map = prs.map_core_id_AtomID_core_id_AtomID()
-    for r, m in aln_map.items():
-        ref_atom = pyrosetta.AtomID(ref.residue(r + 1).atom_index("CA"), r + 1)
-        mobile_atom = pyrosetta.AtomID(mobile.residue(m + 1).atom_index("CA"), m + 1)
-        atom_map[mobile_atom] = ref_atom
-    # return RMSD
-    return prc.scoring.superimpose_pose(mod_pose=mobile, ref_pose=ref, atom_map=atom_map)
 
 
 def relax(pose: pyrosetta.Pose, others, cycles=1):
@@ -92,7 +82,8 @@ def relax(pose: pyrosetta.Pose, others, cycles=1):
     relax.apply(pose)
     return scorefxn(pose) - dG_others
 
-
+def get_ATOM_only(pdbblock: str) -> str:
+    return '\n'.join([line for line in pdbblock.splitlines() if line.startswith('ATOM')])
 def thread(template_block, target_seq, target_name, template_name, temp_folder='/data/outerhome/tmp'):
     # load template
     template = pyrosetta.Pose()
@@ -125,32 +116,55 @@ def thread(template_block, target_seq, target_name, template_name, temp_folder='
         pi.number(i, i)
         pi.chain(i, 'A')
     threaded.pdb_info(pi)
+    superpose(template, threaded)
     return threaded
 
 
 def run_process(target_name, **kvargs):
     tick = time.time()
-    (out_path / f'{target_name}.dummy').write_text('hello world')
-    threaded: pyrosetta.Pose = thread(target_name=target_name, **kvargs)
-    add_chain(pose, others)
-    dG = relax(threaded, others)
-    threaded.dump_pdb(f'{out_path}/{target_name}.pdb')
+    (raw_out_path / f'{target_name}.dummy').write_text('hello world')
+    monomer: pyrosetta.Pose = thread(target_name=target_name, **kvargs)
+    monomer.dump_pdb(f'{raw_out_path}/{target_name}.pdb')
+    oligomer: pyrosetta.Pose = monomer.clone()
+    add_chain(oligomer, others)  # as this is in place
+    for i in range(1, monomer.sequence().find('KDETET') + 1):
+        constrain_chainbreak(oligomer, i)
+    ref_index = oligomer.chain_begin(2)
+    freeze_atom(pose=oligomer, frozen_index=oligomer.chain_end(1), ref_index=ref_index)
+    freeze_atom(pose=oligomer, frozen_index=oligomer.chain_end(2), ref_index=ref_index)
+    for i in range(3, oligomer.num_chains() + 1):
+        freeze_atom(pose=oligomer, frozen_index=oligomer.chain_begin(i), ref_index=ref_index)
+        freeze_atom(pose=oligomer, frozen_index=oligomer.chain_end(i), ref_index=ref_index)
+    scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
+    scorefxn.set_weight(pr_scoring.ScoreType.atom_pair_constraint, 3)
+    scorefxn.set_weight(pr_scoring.ScoreType.coordinate_constraint, 5)
+    dG = relax_chainA(oligomer, cycles=5, distance=0, scorefxn=scorefxn)  # only chain A
+    monomer = oligomer.split_by_chain(1)
+    monomer.dump_pdb(f'{relaxed_out_path}/{target_name}.pdb')
+    info = dict(target_name=target_name, dG=dG)
     print(f'{target_name}: {dG} kcal/mol ({tick - time.time()}s)')
-    return dict(target_name=target_name, dG=dG)
+    with (work_path / 'threading.jsonl').open('a') as fh:
+        fh.write(f'{json.dumps(info)}\n')
+    return info
 
-# --------------------------------
-print('\n## Load the data\n')
-
-# df1 = pd.read_pickle('scored_complexes.pkl.gz').set_index('name')
-# df2 = pd.read_pickle('scored_complexes2.pkl.gz') #.set_index('name')
-# df = pd.concat([df2, df1])
-df = pd.read_pickle(data_path)
-df = df.reset_index().drop_duplicates('name', keep='first').set_index('name')
-if split_size:
-    df = df.sample(split_size).copy()
-df['dG_bind'] = df.complex_score - df.monomer_score - (apo_score)
-df['group'] = df.index.to_series().str.split('_').apply(operator.itemgetter(0))
-df['subgroup'] = df.index.to_series().apply(lambda name: '_'.join(name.split('_')[:-1]))
+three_to_one = {
+    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E',
+    'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
+    'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N',
+    'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',
+    'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
+}
+def get_sequence(pdbblock: str) -> str:
+    sequence = ''
+    residues_seen = set()
+    for line in pdbblock.splitlines():
+        if line.startswith("ATOM") and " CA " in line:
+            res_info = line[17:26]  # Residue name and number for uniqueness
+            if res_info not in residues_seen:
+                residues_seen.add(res_info)
+                res_name = line[17:20].strip()
+                sequence += three_to_one.get(res_name, '?')
+    return sequence
 
 # --------------------------------
 print('\n## Running\n')
@@ -158,62 +172,64 @@ print('\n## Running\n')
 futures: List[ProcessFuture] = []
 preresults: List[dict] = []
 results: List[dict] = []
-t = 60 * 60 * 1
+timeout = 60 * 60 * 5
 # this is the 5 and a half mer without A. It is therefore a 4 & 1/2 mer
 others: pyrosetta.Pose = pyrosetta.pose_from_file('woA_pentakaihemimer.pdb')
 
 with ProcessPool(max_workers=os.cpu_count() - 1, max_tasks=0) as pool:
     # queue jobs
-    n = 0
     for path in seq_paths:
         for seq_record in SeqIO.parse(path, 'fasta'):
-            n += 1
             # first record is input:
             # >beta_0-checkpoint, score=2.4184, global_score=1.5778, fixed_chains=['B', 'C', 'D'], designed_chains=['A'], model_name=v_48_020, git_hash=unknown, seed=37
             # herein I will call the input sample zero and use it as a negative control
             # others are:
             # >T=0.1, sample=1, score=1.0129, global_score=1.5088, seq_recovery=0.0312
             info = {k: float(v) for k, v in re.findall(r'([\w_]+)=([\d.]+)', seq_record.description)}
-            info['name']: str = os.path.splitext(path.name)[0]  # noqa
+            info['name']: str = path.stem  # noqa
             info['sequence']: str = str(seq_record.seq) # noqa
             info['pI'] = ProtParam.ProteinAnalysis(seq_record.seq).isoelectric_point()
             preresults.append(info)
-            if info['name'] not in df.index:
-                with open('missing.txt', 'a') as fh:
+            pdb_path = Path(template_folder / (path.stem + '.pdb'))
+            if not pdb_path.exists():
+                with open('missing_redux.txt', 'a') as fh:
+                    print(f'{path.stem} is missing')
                     fh.write(f'{info["name"]}\n')
                 continue
-            row: pd.Series = df.loc[info['name']]
+            monomer_block = pdb_path.read_text()
             # remove LINK... which there should not be anyway
-            template_block = re.sub(r'(LINK[^\n]+\n)', '', row.monomer)
-            template_block = re.sub(r'(SSBOND[^\n]+\n)', '', template_block)
+            # template_block = re.sub(r'(LINK[^\n]+\n)', '', row.monomer)
+            # template_block = re.sub(r'(SSBOND[^\n]+\n)', '', template_block)
             template_name = info['name']
-            target_seq = info['sequence']
+            template_seq = get_sequence(monomer_block)
+            target_seq = info['sequence'][:len(template_seq)]  # not going to thread the other chains, only A.
+            #assert len(template_seq) == len(target_seq), f'The sequences for {target_name} does not match length'
             # neg control will be Ø which looks like 0̷
             # okay. Ø er ikke det sidste bogstav, Å er. But shmeh
             target_name = f"{info['name']}{'ABCDEFGHIJKLMNOPQRSTUVWXYZØ'[int(info.get('sample', -1))]}"
-            if (out_path / f'{target_name}.pdb').exists() \
-                or (out_path / f'{target_name}.dummy').exists() \
-                or (old_path / f'{target_name}.pdb').exists():
+            if (raw_out_path / f'{target_name}.pdb').exists() \
+                or (raw_out_path / f'{target_name}.dummy').exists() \
+                or (relaxed_out_path / f'{target_name}.pdb').exists():
                 continue
-            assert len(row.sequence) == len(info['sequence']), f'The sequences for {target_name} does not match length'
             future: ProcessFuture = pool.schedule(run_process,
-                                   kwargs=dict(template_block=template_block, target_seq=target_seq,
+                                                  kwargs=dict(template_block=monomer_block, target_seq=target_seq,
                                                target_name=target_name, template_name=template_name),
-                                   timeout=t)
-    print(f'Submitted {n} processes')
+                                                  timeout=timeout)
+            futures.append(future)
+    print(f'Submitted {len(futures)} processes')
     # get results
     for future in futures:
         try:
-            result = future.result() # blocks until results are ready
+            result = future.result()  # blocks until results are ready
             print(result)
             results.append(result)
         except Exception as error:
             error_msg = str(error)
             if isinstance(error, TimeoutError):
-                print(f'Function took longer than {t} seconds {error}')
+                print(f'Function took longer than {timeout} seconds {error}')
             else:
                 print(f"Function raised {error}")
-                print(error.__traceback__)  # traceback of the function
+                traceback.print_tb(error.__traceback__)  # traceback of the function
             results.append(dict(error=error.__class__.__name__, error_msg=error_msg))
 
 df = pd.DataFrame(results)

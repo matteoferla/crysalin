@@ -1,4 +1,5 @@
 # crysalin
+
 The aim is to engineer a better crysalin lattice.
 
 ## Background
@@ -9,7 +10,7 @@ AHIR consists of N-terminal Rossmann fold knob with strep-tag and a C-terminal h
 forming a dodecamer, resulting in a cubic lattice with each steptavidin tetramers forming the vertices,
 leaving a void for cargo.
 
-The Rossmann fold binds weakly to Streptavidin beyond the floppy tag and is wobbly. 
+The Rossmann fold binds weakly to Streptavidin beyond the floppy tag and is wobbly.
 Crystallography >3Å, while AHIR ~1.6Å, Streptavidin ~1.0Å.
 Previous attempts were point-mutants, but need major remodelling.
 Therefore can new designs be made that bind more strongly and are more rigid?
@@ -19,13 +20,6 @@ Plan: Rosetta Remodel vs. RFdiffusion
 
 Project members (Newcastle): Martin Noble, Mathew Martin, Rhianna Rowland
 Project members (Oxford): Frank von Delft, Michael Fairhead, me (Matteo Ferla)
-
-## Caveat
-
-Many of the scripts were run in a reverse–port-forwarded Jupyter Lab notebook running in the cluster
-([tutorial](https://www.blopig.com/blog/2023/10/ssh-the-boss-fight-level-jupyter-notebooks-from-compute-nodes/)).
-And for archiving they are presented here as scripts with variables hardcoded in the top...
-A few step generate a godzillion files in a single directory, which is bad for the FS.
 
 ## Scheme
 
@@ -39,12 +33,18 @@ making the end result a bit of a mess and like this `eta_comboplus_104F.pdb`.
 Steps:
 
 1. RFdiffusion
-2. Filtering in PyRosetta for clashes in full complex
+2. Filtering in PyRosetta for clashes in full complex and superposition to template
 3. ProteinMPNN
 4. Threading & relaxing in PyRosetta and filtering for clashes
 5. Ranking
+
+Initially, these two extra steps were planned:
+
 6. AlphaFold2 validation
 7. Thermal tempering validation
+
+The former is pointless when the majority of the protein is kept.
+The latter gave curious results with controls, so was not pursued.
 
 ## Installation
 
@@ -57,7 +57,7 @@ Installation of RFdiffusion is curious, but straightforward albeit manual ([inst
 
 RFdiffusion has a lot of settings. [rfdiffusion](code/job_RFdiffusion.sh) was run in the cluster
 with the variable `APPTAINERENV_EXPERIMENT` controlling the experiment,
-see script for each one. 
+see script for each one.
 
 > :construction: :warning: TODO add a table of experiments and their settings.
 
@@ -82,13 +82,27 @@ RFdiffusion can accept residues that are more special for interactions ('hotspot
 Here are the hotspots from experiment Gamma:
 ![img.png](images/hotspots.png)
 
+| Experiment     | Replicates | Description               | Template                                        | Noise | Hotspots                                                                                                                                                                                     | Contig                                 | Verdict                                                                   |
+|----------------|------------|---------------------------|-------------------------------------------------|-------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|---------------------------------------------------------------------------|
+| Alpha          | 10         | test                      | dimer.pdb template A:AHIR, B:Streptavidin       | 0.    | [A222,A223,A224,A227,A228,B35,B37,B55,B59,B60,B62,B63,B64,B78,B80,B81,B82,B83,B85,B87]                                                                                                       | [1-150/A202-371/0 B13-135]             | interface is not dimeric, but trimeric AHIR·Strepx2                       |
+| Beta           | 10         | test                      | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [B43,B68,B69,B70,B71,B73,B75,C23,C25,C47,C48,C50,C51,C52,C66,C53,C54,C55]                                                                                                                    | [1-150/A198-367/0 B1-123/0 C1-123/0]   | too many short constructs                                                 |
+| Gamma_lownoise | 100        | low noise                 | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [A197,A198,A199,A202,A203,B43,B68,B69,B70,B71,B73,B75,C23,C25,C47,C48,C50,C51,C52,C66,C53,C54,C55]                                                                                           | [1-200/A196-367/0 B1-123/0 C1-123/0]   | .                                                                         |
+| Gamma_midnoise | 100        | mid noise                 | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [A197,A198,A199,A202,A203,B43,B68,B69,B70,B71,B73,B75,C23,C25,C47,C48,C50,C51,C52,C66,C53,C54,C55]                                                                                           | [1-200/A196-367/0 B1-123/0 C1-123/0]   | .                                                                         |
+| Gamma_midnoise | 100        | full noise                | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [A197,A198,A199,A202,A203,B43,B68,B69,B70,B71,B73,B75,C23,C25,C47,C48,C50,C51,C52,C66,C53,C54,C55]                                                                                           | [1-200/A196-367/0 B1-123/0 C1-123/0]   | .                                                                         |
+| Gamma_mega     | 100        | up to 500 AA              | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [A197,A198,A199,A202,A203,B43,B68,B69,B70,B71,B73,B75,C23,C25,C47,C48,C50,C51,C52,C66,C53,C54,C55]                                                                                           | [1-500/A196-367/0 B1-123/0 C1-123/0]   | .                                                                         |
+| Gamma_mini     | 100        | up to 100 AA              | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [A197,A198,A199,A202,A203,B43,B68,B69,B70,B71,B73,B75,C23,C25,C47,C48,C50,C51,C52,C66,C53,C54,C55]                                                                                           | [1-100/A196-367/0 B1-123/0 C1-123/0]   | .                                                                         |
+| Gamma_Aless    | 100        | No dimeration CTD of AHIR | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [B43,B68,B69,B70,B71,B73,B75,C23,C25,C47,C48,C50,C51,C52,C66,C53,C54,C55]                                                                                                                    | [1-200/0 B1-123/0 C1-123/0]            | I should have kept the last residue of A. But most cases would be clashes |
+| Delta_full     | 10         | .                         | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [A197,A198,A199,A202,A203,C1,C2,C3,C23,C25,C47,C48,C50,C51,C52,C53,C54,C55,C66,C84,C86,B13,B15,B31,B33,B34,B35,B37,B40,B42,B43,B67,B68,B69,B70,B71,B72,B73,B74,B75,B76,B78,B80,B96,B98,B100] | [150-400/A196-367/0 B3-121/0 C3-121/0] | .                                                                         |
+| ...          | ...        | ...                       | ...                                             | ...   | ...                                                                                                                                                                                          | ...                                    | ...                                                                       | 
+
+
 ## Rosetta Remodel
 
-In Parallel Rosetta Remodel was used in PyRosetta in [remodel.py](code/remodel.py).
+In Parallel Rosetta Remodel was used in PyRosetta in [remodel.py](code/initial/remodel.py).
 For the sake of sanity, the constructs were renumbered PDB -> Pose numbering
 as Remodel is odd when multichain PDBs and PDB numbering are used.
 
-The blueprints are in misc, but were generated dynamically in the script 
+The blueprints are in misc, but were generated dynamically in the script
 (cf [tutorial](https://blog.matteoferla.com/2021/04/remodel-in-pyrosetta.html) for working).
 
 Three sub-experiments were run:
@@ -99,9 +113,12 @@ Three sub-experiments were run:
 
 ![img.png](images/remodel.png)
 
+The vast majority of Remodel experiments were not successful and gave a polyglycine
+(the set default residue for kinematic closure).
+
 ## Filtering
 
-See [filtering](code/initial/filter_original.py) for the filtering scripts
+> Script: [code/superpose.py](superpose.py)
 
 Even if the models are polyglycine, they can be used to tell if there are clashes.
 Here is a prelimary plot of progress of the generated models:
@@ -111,15 +128,24 @@ In the filtering removing models non-forming interactions was important.
 
 ![img.png](images/reach.png)
 
+Initially this was done in PyRosetta ignoring Lennard-Jones attraction term and
+only looking at clashes (high Lennard-Jones repulsion term).
+Subsequently, distance matrix was used to filter out models that were too far from the streptavidin or too close to
+other parts.
+
 ## ProteinMPNN
 
+> Script: [code/prep_MPNN.py](code/prep_MPNN.py)
+
 The helper scripts for ProteinMPNN do not allow variable length protein and are a bit awkward to use.
-The [functional_proteinMPNN_helper.py](code/functional_proteinMPNN_helper.py) is a refactored version called by 
+The [functional_proteinMPNN_helper.py](code/functional_proteinMPNN_helper.py) is a refactored version called by
 [prep_MPNN.py](code/prep_MPNN.py).
 
-## Threading & relaxing
+## Threading, relaxing & tuning
 
-In [thread.py](code/thread.py) I used the threading module from RosettaCM in PyRosetta as opposed to 
+> Script: [code/thread_tune.py](code/thread_tune.py)
+
+I used the threading module from RosettaCM in PyRosetta as opposed to
 brutally substituting each residue sequentially as in original paper.
 I then placed the monomer in a subset complex and relaxed the chain.
 
@@ -127,11 +153,14 @@ I then placed the monomer in a subset complex and relaxed the chain.
 
 ## StrepTag
 
+Initially, I removed the streptag from the designs, but this was determined to be unnecessary and unhelpful.
+
 The StrepTag is an 8+ residue tag that binds to Streptavidin.
 Some constructs retain the tag, others don't.
 I did not remove it from the templates as I did not want its rediscovey to be a factor in the ranking.
 However, it causes issues.
 The sequence between 149:A and 159:A (inclusives) is `NWSHPQFEKRP`.
+
 * Complex minimised: -1974.9 kcal/mol
 * Monomer extracted: -773.9 kcal/mol
 * Tag extracted: +9.5 kcal/mol
@@ -139,10 +168,6 @@ The sequence between 149:A and 159:A (inclusives) is `NWSHPQFEKRP`.
 * Complex w/o tag: -1949.2 kcal/mol
 
 The tag only add -15.5 kcal/mol to the monomer's score, but -19.7 kcal/mol to the complex's score.
-
-Therefore, any model with the tag will be penalised by +20 kcal/mol,
-when the interface score is brutally calculated without minimising the monomer
-as it done here.
 
 ## AF2 validation
 
@@ -152,9 +177,7 @@ as it done here.
 
 > :construction: :warning: TODO ...
 
-## Design optimisation
-
-> :construction: :warning: TODO ...
+## Footnote: helical
 
 RFdiffusion is said to be good at helices and sheet, but poor at loops.
 Here is a helical interaction for example:
@@ -165,7 +188,7 @@ Here is a helical interaction for example:
 
 ![open-closed](images/open-close.png)
 
-PDB:1SWE vs PDB:1SWB 
+PDB:1SWE vs PDB:1SWB
 
 > :construction: :warning: TODO ...
 
@@ -179,6 +202,13 @@ and leaving AF2 as a 'redocking test'.
 
 ![test-zero](images/test0.jpg)
 
+## Footnote: Caveat
+
+Many of the scripts were run in a reverse–port-forwarded Jupyter Lab notebook running in the cluster
+([tutorial](https://www.blopig.com/blog/2023/10/ssh-the-boss-fight-level-jupyter-notebooks-from-compute-nodes/)).
+And for archiving they are presented here as scripts with variables hardcoded in the top...
+A few step generate a godzillion files in a single directory, which is bad for the FS.
+
 ## Footnote: Streptavidin binders
 
 Does Streptavin have natural binders?
@@ -191,8 +221,6 @@ Its neighbours are:
 * WP_189973633.1: Cytochrome P450. Suppressed entry, but homologous to other actinomycetian P450
 
 * Thematically similar, but not a smoking gun
-
-
 
 ![img.png](images/operon.png)
 

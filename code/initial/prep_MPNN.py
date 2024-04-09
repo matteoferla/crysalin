@@ -4,17 +4,16 @@ import os
 import pandas as pd
 from pathlib import Path
 # this is a refactored version of the original MPNN helpers
-from functional_proteinMPNN_helper import (parse_PDBblock, define_fixed_chains,
-                                           define_unfixed_positions, define_unfixed_positions)
+from functional_proteinMPNN_helper import parse_PDBblock, define_fixed_chains, define_unfixed_positions, define_unfixed_positions
 from typing import Dict, List, Any, Sequence
 
 # -------------------------------------------
-work_path = Path(os.environ.get('WORKPATH', 'output_redux'))
-#input_folder = 'output_redux/filtered'
-input_folder = f'{work_path}/superposed_skeletons'
-chains_definitions_path = f'{work_path}/chains_definitions.jsonl'
-fixed_chains_path = f'{work_path}/fixed_chains.json'
-fixed_positions_path = f'{work_path}/fixed_positions.json'
+data_path = 'scored_complexes3.pkl.gz'
+input_folder = 'output_redux/filtered'
+chains_definitions_path = 'output_MPNN/chains_definitions.jsonl'
+fixed_chains_path = 'output_MPNN/fixed_chains.json'
+fixed_positions_path = 'output_MPNN/fixed_positions.json'
+woA_block = Path('woA_pentakaihemimer.pdb').read_text()
 
 # -------------------------------------------
 
@@ -24,9 +23,6 @@ global_fixed_chains: Dict[str, List[List[str]]] = {}
 global_fixed_positions = {}
 
 def get_ATOM_only(pdbblock: str) -> str:
-    """
-    This gets all ATOM, regardless of name and chain
-    """
     return '\n'.join([line for line in pdbblock.splitlines() if line.startswith('ATOM')])
 
 three_to_one = {
@@ -37,7 +33,7 @@ three_to_one = {
     'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
 }
 
-def get_chainA_sequence(pdbblock: str) -> str:
+def get_sequence(pdbblock: str) -> str:
     sequence = ''
     residues_seen = set()
     for line in pdbblock.splitlines():
@@ -49,24 +45,15 @@ def get_chainA_sequence(pdbblock: str) -> str:
                 sequence += three_to_one.get(res_name, '?')
     return sequence
 
-n = -1 # <-- positive number: for testing
-paths = [path for path in Path(input_folder).glob('*.pdb')]
-woA_block = Path('woA_pentakaihemimer.relax.pdb').read_text()
-for path in paths:
+
+for path in Path(input_folder).glob('*.pdb'):
     if 'complex' in path.stem:
-        continue
-    n -= 1
-    if n == 0:
-        print('break')
-        break
-    if (work_path / f'seqs/{path.stem}.fa').exists():
         continue
     # chain and seq def
     name = path.stem
-    print(f'Prepping {name}', flush=True)
     momomer_pdbblock = get_ATOM_only(path.read_text())
     complex_pdbblock = momomer_pdbblock + '\n' + woA_block
-    sequence = get_chainA_sequence(complex_pdbblock)
+    sequence = get_sequence(complex_pdbblock)
     definition = parse_PDBblock(complex_pdbblock, name)
     definitions.append(definition)
     # fixed chain

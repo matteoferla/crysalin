@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from types import ModuleType
 from typing import List, Dict, Union, Optional, Sequence
-
+import numpy as np
 import pandas as pd
 import pyrosetta
 import pyrosetta_help as ph
@@ -115,7 +115,7 @@ def align_for_atom_map(mobile: pyrosetta.Pose, ref: pyrosetta.Pose) -> Dict[int,
                q != -1 and t != -1 and ref_seq[t] == pose_seq[q]}
 
 
-def superpose_pose_by_chain(pose, ref, chain: str) -> float:
+def superpose_pose_by_chain(pose, ref, chain: str, strict: bool=True) -> float:
     """
     superpose by PDB chain letter
 
@@ -129,7 +129,8 @@ def superpose_pose_by_chain(pose, ref, chain: str) -> float:
     for r, m in zip(pr_res.selection_positions(chain_sele.apply(ref)),
                     pr_res.selection_positions(chain_sele.apply(pose))
                     ):
-        assert pose.residue(m) == ref.residue(r), 'Mismatching residue positions!'
+        if strict:
+            assert pose.residue(m).name3() == ref.residue(r).name3(), 'Mismatching residue positions!'
         ref_atom = pyrosetta.AtomID(ref.residue(r).atom_index("CA"), r)
         mobile_atom = pyrosetta.AtomID(pose.residue(m).atom_index("CA"), m)
         atom_map[mobile_atom] = ref_atom
@@ -191,6 +192,46 @@ def superpose(ref: pyrosetta.Pose, mobile: pyrosetta.Pose, aln_map: Optional[Dic
     # return RMSD
     return prc.scoring.superimpose_pose(mod_pose=mobile, ref_pose=ref, atom_map=atom_map)
 
+def get_ATOM_only(pdbblock: str) -> str:
+    return '\n'.join([line for line in pdbblock.splitlines() if line.startswith('ATOM')])
+
+three_to_one = {
+    'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E',
+    'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
+    'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N',
+    'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',
+    'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'
+}
+def get_sequence(pdbblock: str) -> str:
+    sequence = ''
+    residues_seen = set()
+    for line in pdbblock.splitlines():
+        if line.startswith("ATOM") and " CA " in line:
+            res_info = line[17:26]  # Residue name and number for uniqueness
+            if res_info not in residues_seen:
+                residues_seen.add(res_info)
+                res_name = line[17:20].strip()
+                sequence += three_to_one.get(res_name, '?')
+    return sequence
+
+
+def unused_relax(pose: pyrosetta.Pose, others, cycles=1):
+    # unused?
+    scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
+    dG_others = scorefxn(others)
+    rs: ModuleType = prc.select.residue_selector
+    chainA_sele: rs.ResidueSelectorr = rs.ChainSelector('A')
+    chainA: pru.vector1_bool = chainA_sele.apply(pose)
+    neigh_sele: rs.ResidueSelector = prc.select.residue_selector.NeighborhoodResidueSelector(chainA_sele, True, 5)
+    neighs: pru.vector1_bool = neigh_sele.apply(pose)
+    relax = pyrosetta.rosetta.protocols.relax.FastRelax(scorefxn, cycles)
+    movemap = pyrosetta.MoveMap()
+    movemap.set_bb(chainA)
+    movemap.set_chi(neighs)
+    movemap.set_jump(chainA)
+    relax.set_movemap(movemap)
+    relax.apply(pose)
+    return scorefxn(pose) - dG_others
 
 # ------------------------------------------------------------------------------------
 # streptavidin extraction
@@ -240,10 +281,12 @@ def combine_and_relax(pose: pyrosetta.Pose, others, cycles=1):
 def relax_chainA(pose: pyrosetta.Pose, cycles=1, distance=5, scorefxn=None):
     if scorefxn is None:
         scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
+        scorefxn.set_weight(pr_scoring.ScoreType.atom_pair_constraint, 3)
+        scorefxn.set_weight(pr_scoring.ScoreType.coordinate_constraint, 5)
     relax = pyrosetta.rosetta.protocols.relax.FastRelax(scorefxn, cycles)
     movemap = pyrosetta.MoveMap()
     rs: ModuleType = prc.select.residue_selector
-    chainA_sele: rs.ResidueSelectorr = rs.ChainSelector('A')
+    chainA_sele: rs.ResidueSelector = rs.ChainSelector('A')
     chainA: pru.vector1_bool = chainA_sele.apply(pose)
     if distance > 0:
         neigh_sele: rs.ResidueSelector = rs.NeighborhoodResidueSelector(chainA_sele, True, distance)
@@ -258,7 +301,8 @@ def relax_chainA(pose: pyrosetta.Pose, cycles=1, distance=5, scorefxn=None):
     return scorefxn(pose)
 
 
-def thread(template_block, target_seq, target_name, template_name, temp_folder='/data/outerhome/tmp'):
+def thread(template_block, target_seq, target_name, template_name,
+           temp_folder='/data/outerhome/tmp'):
     # load template
     template = pyrosetta.Pose()
     prc.import_pose.pose_from_pdbstring(template, template_block)
@@ -270,8 +314,7 @@ def thread(template_block, target_seq, target_name, template_name, temp_folder='
                      template_sequence=template.sequence(),
                      outfile=aln_filename
                      )
-    aln: prc.sequence.SequenceAlignment = \
-    pyrosetta.rosetta.core.sequence.read_aln(format='grishin', filename=aln_filename)[1]
+    aln: prc.sequence.SequenceAlignment = prc.sequence.read_aln(format='grishin', filename=aln_filename)[1]
     threaded: pyrosetta.Pose
     threader: prp.comparative_modeling.ThreadingMover
     threadites: pru.vector1_bool
@@ -290,6 +333,7 @@ def thread(template_block, target_seq, target_name, template_name, temp_folder='
         pi.number(i, i)
         pi.chain(i, 'A')
     threaded.pdb_info(pi)
+    superpose(template, threaded)
     return threaded
 
 
@@ -308,6 +352,9 @@ def create_design_tf(pose:pyrosetta.Pose, design_sele: pr_res.ResidueSelector, d
     #residues_to_design = design_sele.apply(pose)
     # this is default:
     # design_ops = prc.pack.task.operation.OperateOnResidueSubset(????, residues_to_design)
+    no_cys = pru.vector1_std_string(1)
+    no_cys[1] = 'CYS'
+    no_cys_ops =  prc.pack.task.operation.ProhibitSpecifiedBaseResidueTypes(no_cys)
     # No design, but repack
     repack_sele = pr_res.NeighborhoodResidueSelector(design_sele, distance, False)
     residues_to_repack = repack_sele.apply(pose)
@@ -321,8 +368,9 @@ def create_design_tf(pose:pyrosetta.Pose, design_sele: pr_res.ResidueSelector, d
     # pyrosetta.rosetta.core.pack.task.operation.RestrictAbsentCanonicalAASRLT
     # pyrosetta.rosetta.core.pack.task.operation.PreserveCBetaRLT
     task_factory = prc.pack.task.TaskFactory()
-    task_factory.push_back(frozen_ops)
+    task_factory.push_back(no_cys_ops)
     task_factory.push_back(repack_ops)
+    task_factory.push_back(frozen_ops)
     return task_factory
 
 
@@ -417,6 +465,11 @@ def freeze_atom(pose: pyrosetta.Pose, frozen_index: int, ref_index: int, x0_in=0
     pose.add_constraint(con)
 
 # -------- other issues
+def extract_coords(pose: pyrosetta.Pose) -> np.ndarray:
+    # this seems to be present in the docs but not in my version?
+    # pyrosetta.toolbox.extract_coords_pose.pose_coords_as_row
+    return np.array([list(pose.xyz(pyrosetta.AtomID(a, r))) for r in range(1, 1+pose.total_residue()) for a in range(1, 1+pose.residue(r).natoms())])
+
 
 def get_pose_break(pose: pyrosetta.Pose) -> int:
     """

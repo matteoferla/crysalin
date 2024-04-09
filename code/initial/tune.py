@@ -1,8 +1,3 @@
-"""
-Given a shortlist, run FastDesign and scoring on each of them.
-"""
-
-
 from common_pyrosetta import (init_pyrosetta, design_interface_onA, superpose_pose_by_chain,
                               relax_chainA,transpant_CTD,constrain_chainbreak,freeze_atom,design_different,
                               extract_not_chainA, add_chain, extract_streptavidins, score_interface)
@@ -27,8 +22,9 @@ pr_scoring: ModuleType = pyrosetta.rosetta.core.scoring
 pr_options: ModuleType = pyrosetta.rosetta.basic.options
 pr_res: ModuleType = pyrosetta.rosetta.core.select.residue_selector
 
-timeout = 4 * 60 * 60
-outfolder = 'output_scoring'
+timeout = 24 * 60 * 60
+outfolder = Path(os.environ.get('WORKPATH', 'output_redux'))
+print(f'path: {outfolder}')
 os.makedirs(f'{outfolder}/tuned', exist_ok=True)
 print('starting Pyrosetta...')
 init_pyrosetta()
@@ -38,11 +34,12 @@ num_cores = multiprocessing.cpu_count()
 def parse(pdb_path: Path) -> dict:
     name = pdb_path.stem  # same as `str(pdb_path).split('/')[-1].split('.')[0]`
     if Path(f'{outfolder}/tuned/{pdb_path.stem}.pdb').exists():
-        return dict(name=name, status='done already')
+        return dict(name=name, status='done already', flush=True)
     Path(f'{outfolder}/tuned/{pdb_path.stem}.pdb').touch()
     init_pyrosetta()
     scorefxn = pyrosetta.get_fa_scorefxn()
-    info = json.loads(Path(f'{outfolder}/info/{name}.json').read_text())
+    json_path = Path(f'{outfolder}/info/{name}.json')
+    info = json.loads(json_path.read_text()) if json_path.exists() else {'name': name}
     info['status'] = 'crashed_mysteriously'
     pdbblock: str = Path(pdb_path).read_text()
     if not pdbblock.strip():
@@ -50,10 +47,11 @@ def parse(pdb_path: Path) -> dict:
         info['end'] = time.time()
         print(name, 'empty')
         return info
+    # this is assumed in correct location
     monomer: pyrosetta.Pose = pyrosetta.pose_from_file(str(pdb_path)).split_by_chain(1)
     ref = pyrosetta.pose_from_file('pentakaihemimer.relax.pdb')
     woA = extract_not_chainA(ref)
-    oligomer: pyrosetta.Pose = transpant_CTD(monomer, ref, 'KDETET')  # for semantics
+    oligomer = transpant_CTD(monomer, ref, 'KDETET')  # for semantics
     add_chain(oligomer, woA)  # as this is in place
     for i in range(1, monomer.sequence().find('KDETET') + 1):
         constrain_chainbreak(oligomer, i)
@@ -70,15 +68,17 @@ def parse(pdb_path: Path) -> dict:
     info['complex_dG_pre'] = scorefxn(oligomer)
     monomer = oligomer.split_by_chain(1)
     info['monomer_dG_pre'] = scorefxn(monomer)
+    print(f'relaxed {name}', flush=True)
     monomer.dump_pdb(f'{outfolder}/relaxed/{pdb_path.stem}.pdb')
     design_different(oligomer, ref, cycles=15, scorefxn=scorefxn)
     monomer = oligomer.split_by_chain(1)
+    print('designed {name}', flush=True)
     monomer.dump_pdb(f'{outfolder}/tuned/{pdb_path.stem}.pdb')
     info['complex_dG_post'] = scorefxn(oligomer)
     info['monomer_dG_post'] = scorefxn(monomer)
     info['tweaked_sequence'] = monomer.sequence()
     streptavidins = extract_streptavidins(ref, cardinality=2)
-    superpose_pose_by_chain(oligomer, streptavidins, 'B')
+    superpose_pose_by_chain(oligomer, streptavidins, 'B', strict=False)
     # combine with streptavidins only
     minicomplex = monomer.clone()
     add_chain(minicomplex, streptavidins)
@@ -90,8 +90,10 @@ def parse(pdb_path: Path) -> dict:
 
 if __name__ == '__main__':
     with pebble.ProcessPool(max_workers=num_cores - 1, max_tasks=0) as pool:
-        names = json.loads(Path('shortlist.json').read_text())
-        pdbs_paths = [Path(f'{outfolder}/relaxed/{name}.pdb') for name in names]
+        #names = json.loads(Path('shortlist.json').read_text())
+        #pdbs_paths = [Path(f'{outfolder}/relaxed_pdbs/{name}.pdb') for name in names]
+        pdbs_paths = list(Path(f'{outfolder}/relaxed_pdbs/').glob('*.pdb'))
+        print(f'from {outfolder}/relaxed Tasks: {pdbs_paths}', flush=True)
         random.shuffle(pdbs_paths)
         futuremap: pebble.ProcessMapFuture = pool.map(parse, pdbs_paths, timeout=timeout)
         iter_future: Iterator = futuremap.result()

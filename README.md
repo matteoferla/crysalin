@@ -10,27 +10,35 @@ AHIR consists of N-terminal Rossmann fold knob with strep-tag and a C-terminal h
 forming a dodecamer, resulting in a cubic lattice with each steptavidin tetramers forming the vertices,
 leaving a void for cargo.
 
-The Rossmann fold binds weakly to Streptavidin beyond the floppy tag and is wobbly.
+The Rossmann fold binds weakly to Streptavidin beyond the tag held via a floppy linker.
+Fortuitously, the complex is stabilised by a sugar, but that is a crystallisation artefact.
 Crystallography >3Å, while AHIR ~1.6Å, Streptavidin ~1.0Å.
 Previous attempts were point-mutants, but need major remodelling.
 Therefore, can new designs be made that bind more strongly and are more rigid?
-Plan: Rosetta Remodel vs. RFdiffusion
 
 (![parts](images/parts.jpg))
 
+## People involved
 Project members (Newcastle): Martin Noble, Mathew Martin, Rhianna Rowland
 Project members (Oxford): Frank von Delft, Michael Fairhead, me (Matteo Ferla)
 
-## Scheme
+## Aim
 
-* Experiments were given Greek letters
-* Replicates of RFdiffusion were given numbers
-* Replicates of ProteinMPNN were given letters, with the letter Ø for the original polyglycine (control)
+Run both RFdiffusion and Rosetta Remodel to generate designs.
 
-However, as the experiments had minor variations, suffices to the greek letters were used,
-making the end result a bit of a mess and like this `eta_comboplus_104F.pdb`.
+## Methods
 
-Steps:
+### Summary
+Rosetta Remodel is useful for generating parametrically designed proteins.
+However, very few designs were successful and were outcompeted by RFdiffusion designs which tweaked the Rossmann fold.
+
+RFdiffusion-AA was tried, but due to its early release status the results were more problematic than RFdiffusion.
+
+Many iterations were performed.
+Whereas RFdiffusion is for de novo design of whole domains, 
+tweaking the Rossmann fold (primarily resi 41-46,64-66,144-146) was far more successful.
+
+## Steps
 
 1. RFdiffusion
 2. Filtering in PyRosetta for clashes in full complex and superposition to template
@@ -45,6 +53,15 @@ Initially, these two extra steps were planned:
 
 The former is pointless when the majority of the protein is kept.
 The latter gave curious results with controls, so was not pursued.
+
+## Naming scheme
+
+* Experiments were given Greek letters
+* Replicates of RFdiffusion were given numbers
+* Replicates of ProteinMPNN were given letters, with the letter Ø for the original polyglycine (control)
+
+However, as the experiments had minor variations, suffices to the greek letters were used,
+making the end result a bit of a mess and like this `eta_comboplus_104F.pdb`.
 
 ## Installation
 

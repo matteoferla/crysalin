@@ -41,18 +41,22 @@ tweaking the Rossmann fold (primarily resi 41-46,64-66,144-146) was far more suc
 ## Steps
 
 1. RFdiffusion
-2. Filtering in PyRosetta for clashes in full complex and superposition to template
-3. ProteinMPNN
-4. Threading & relaxing in PyRosetta and filtering for clashes
-5. Ranking
+2. Superposition to template in full complex: filtering ref2015 score (initial) or by Euclidean distance
+3. ProteinMPNN x5
+4. Threading
+5. Complex with other AHIR dimer's stalk domain
+6. Relaxing only chain A
+8. FastDesign on differing residues
+9. Interface scoring & interactions with Streptavidin counted
+9. Ranking
 
-Initially, these two extra steps were planned:
+Initially, these three extra steps were planned:
 
-6. AlphaFold2 validation
-7. Thermal tempering validation
+1. AlphaFold2 validation
+2. Thermal tempering validation
+3. Backrub drift
 
-The former is pointless when the majority of the protein is kept.
-The latter gave curious results with controls, so was not pursued.
+But various test failed their validity.
 
 ## Naming scheme
 
@@ -63,20 +67,11 @@ The latter gave curious results with controls, so was not pursued.
 However, as the experiments had minor variations, suffices to the greek letters were used,
 making the end result a bit of a mess and like this `eta_comboplus_104F.pdb`.
 
-## Installation
-
-> [install.sh](code/install.sh) :construction: :warning: TODO FINISH COPYING
-
-Installation of RFdiffusion is curious, but straightforward albeit manual ([install.sh](code/install.sh))
-—it needs some cleaning up lest one is fine with stuff dumped around.
-
 ## RFdiffusion
 
 RFdiffusion has a lot of settings. [rfdiffusion](code/job_RFdiffusion.sh) was run in the cluster
 with the variable `APPTAINERENV_EXPERIMENT` controlling the experiment,
 see script for each one.
-
-> :construction: :warning: TODO add a table of experiments and their settings.
 
 > :construction: :warning: TODO add a picture
 
@@ -190,49 +185,9 @@ only looking at clashes (high Lennard-Jones repulsion term).
 Subsequently, distance matrix was used to filter out models that were too far from the streptavidin or too close to
 other parts.
 
-## ProteinMPNN
+## Other
 
-> Script: [code/prep_MPNN.py](code/prep_MPNN.py)
-
-The helper scripts for ProteinMPNN do not allow variable length protein and are a bit awkward to use.
-The [functional_proteinMPNN_helper.py](code/functional_proteinMPNN_helper.py) is a refactored version called by
-[prep_MPNN.py](code/prep_MPNN.py).
-
-## Threading, relaxing & tuning
-
-> Script: [code/thread_tune.py](code/thread_tune.py)
-
-I used the threading module from RosettaCM in PyRosetta as opposed to
-brutally substituting each residue sequentially as in original paper.
-I then placed the monomer in a subset complex and relaxed the chain.
-
-> :construction: :warning: TODO graphs galore
-
-## StrepTag
-
-Initially, I removed the streptag from the designs, but this was determined to be unnecessary and unhelpful.
-
-The StrepTag is an 8+ residue tag that binds to Streptavidin.
-Some constructs retain the tag, others don't.
-I did not remove it from the templates as I did not want its rediscovey to be a factor in the ranking.
-However, it causes issues.
-The sequence between 149:A and 159:A (inclusives) is `NWSHPQFEKRP`.
-
-* Complex minimised: -1974.9 kcal/mol
-* Monomer extracted: -773.9 kcal/mol
-* Tag extracted: +9.5 kcal/mol
-* Monomer w/o tag: -768.0 kcal/mol
-* Complex w/o tag: -1949.2 kcal/mol
-
-The tag only add -15.5 kcal/mol to the monomer's score, but -19.7 kcal/mol to the complex's score.
-
-## AF2 validation
-
-> :construction: :warning: TODO ...
-
-## Thermal tempering
-
-> :construction: :warning: TODO ...
+see [former_notes.md](former_notes.md) for more details.
 
 ## Footnote: helical
 
@@ -281,3 +236,10 @@ Its neighbours are:
 
 ![img.png](images/operon.png)
 
+
+## Footnote: RFdiffusion installation
+
+> [install.sh](code/install.sh) :construction: :warning: TODO FINISH COPYING
+
+Installation of RFdiffusion is curious, but straightforward albeit manual ([install.sh](code/install.sh))
+—it needs some cleaning up lest one is fine with stuff dumped around.

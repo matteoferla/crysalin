@@ -1,6 +1,6 @@
 ## Combined dumpyard of RFdiffusion commands
 
-This is for my personal reference. 
+This is for my personal reference. I need to make them into a table.
 
 ```bash
 

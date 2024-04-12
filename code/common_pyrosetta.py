@@ -1,7 +1,9 @@
 import re
+import json
+import contextlib
 from pathlib import Path
 from types import ModuleType
-from typing import List, Dict, Union, Optional, Sequence
+from typing import List, Dict, Union, Optional, Sequence, Any
 import numpy as np
 import pandas as pd
 import pyrosetta
@@ -616,3 +618,30 @@ def get_pdbblock(name):
         return path2.read_text()
     else:
         raise Exception(name)
+
+# ------------------------------------------------------------------------------------
+
+def read_jsonl(filename: Union[str, Path]) -> List[Any]:
+    """
+    Read a jsonl file skipping errors
+
+    :param filename:
+    :return:
+    """
+    data = []
+    for line in Path(filename).read_text().split('\n'):
+        with contextlib.suppress(json.JSONDecodeError):
+            data.append(json.loads(line))
+    return data
+
+def write_jsonl(filename: Union[str, Path], data: Any):
+    """
+    Write a jsonl file
+    I have not checked if I need to escape newlines
+
+    :param filename:
+    :param data:
+    :return:
+    """
+    with Path(filename).open('a') as f:
+        f.write(json.dumps(data) + '\n')

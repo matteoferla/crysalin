@@ -13,7 +13,7 @@ leaving a void for cargo.
 The Rossmann fold binds weakly to Streptavidin beyond the floppy tag and is wobbly.
 Crystallography >3Å, while AHIR ~1.6Å, Streptavidin ~1.0Å.
 Previous attempts were point-mutants, but need major remodelling.
-Therefore can new designs be made that bind more strongly and are more rigid?
+Therefore, can new designs be made that bind more strongly and are more rigid?
 Plan: Rosetta Remodel vs. RFdiffusion
 
 (![parts](images/parts.jpg))
@@ -95,6 +95,46 @@ Here are the hotspots from experiment Gamma:
 | Delta_full     | 10         | .                         | trimer-renumbered.pdb A:AHIR, B+C:Streptavidin  | 0.5   | [A197,A198,A199,A202,A203,C1,C2,C3,C23,C25,C47,C48,C50,C51,C52,C53,C54,C55,C66,C84,C86,B13,B15,B31,B33,B34,B35,B37,B40,B42,B43,B67,B68,B69,B70,B71,B72,B73,B74,B75,B76,B78,B80,B96,B98,B100] | [150-400/A196-367/0 B3-121/0 C3-121/0] | .                                                                         |
 | ...          | ...        | ...                       | ...                                             | ...   | ...                                                                                                                                                                                          | ...                                    | ...                                                                       | 
 
+Were it done on a single GPU node, the code would be something like:
+(This overwrites the protein MPNN jsonl files, but will only generate sequences if not present,
+and will only thread and tune if not present. So previous runs should not interfere)
+
+```bash
+export WORKPATH=$HOME2/crysalin/output
+
+# these are in my bashrc or conda env vars
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:/usr/local/cuda/compat:$LD_LIBRARY_PATH
+export SLACK_WEBHOOK='https://hooks.slack.com/services/👾👾👾👾👾👾'
+export RFDIFFUSSION_CONFIG=$HOME2/.cache/RFdiffusion_config/inference
+export PROTEINMPNN_WEIGHTS=$HOME2/.cache/ProteinMPNN_weights/vanilla_model_weights
+
+
+CUDA_VISIBLE_DEVICES=0 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output inference.output_prefix=$HOME2/crysalin/output/sigma/sigma \
+ inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+ 'ppi.hotspot_res=[A203,A204,A207,a271,a205,B25,B27,B43,B45,B46,B47,B49,B52,B54,B55,B79,B30,B81,B82,B83,B84,B85,B86,B87,B88,B90,B92,B108,B110,B112,C13,C14,C15,C35,C37,C59,C60,C62,C63,C64,C65,C66,C67,C78,C96,C98,L24,L25]'\
+ 'contigmap.contigs=[A5-9/10-20/A24-40/6-20/A47-51/20-40/A69-139/7-9/A149-158/8-12/A167-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+ inference.num_designs=1000
+
+python $HOME2/crysalin/superpose.py
+python $HOME2/crysalin/prep_MPNN.py
+
+CUDA_VISIBLE_DEVICES=0  python $CONDA_PREFIX/bin/protein_mpnn_run.py \
+--jsonl_path $WORKPATH'/chains_definitions.jsonl' \
+--chain_id_jsonl $WORKPATH'/fixed_chains.json' \
+--fixed_positions_jsonl $WORKPATH'/fixed_positions.json' \
+--out_folder $WORKPATH \
+--num_seq_per_target 5 \
+--sampling_temp "0.1" \
+--seed 37 \
+--batch_size 1 \
+--path_to_model_weights $PROTEINMPNN_WEIGHTS;
+
+python $HOME2/crysalin/thread_tune.py
+
+curl -X POST -H 'Content-type: application/json' --data '{"text":"experiment sigma done"}' $SLACK_WEBHOOK
+```
 
 ## Rosetta Remodel
 

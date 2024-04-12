@@ -102,10 +102,11 @@ def run_process(**inputs):
     original_start = monomer.sequence().find('KDETET') + 1
     for i in range(original_start, oligomer.total_residue() + 1):
         freeze_atom(pose=oligomer, frozen_index=i, ref_index=1)
-    scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
-    scorefxn.set_weight(pr_scoring.ScoreType.atom_pair_constraint, 3)
-    scorefxn.set_weight(pr_scoring.ScoreType.coordinate_constraint, 1)
-    vanilla_relax = pyrosetta.rosetta.protocols.relax.FastRelax(scorefxn, relax_cycles)
+    con_scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
+    vanilla_scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
+    con_scorefxn.set_weight(pr_scoring.ScoreType.atom_pair_constraint, 3)
+    con_scorefxn.set_weight(pr_scoring.ScoreType.coordinate_constraint, 1)
+    vanilla_relax = pyrosetta.rosetta.protocols.relax.FastRelax(con_scorefxn, relax_cycles)
     movemap = pyrosetta.MoveMap()
     # move front part starting from residue 2 and up to KDETET
     v = pru.vector1_bool(oligomer.total_residue())
@@ -116,7 +117,7 @@ def run_process(**inputs):
     movemap.set_jump(False)
     vanilla_relax.set_movemap(movemap)
     vanilla_relax.apply(oligomer)
-    info['dG'] = scorefxn(oligomer)
+    info['dG'] = vanilla_scorefxn(oligomer)
     monomer: pyrosetta.Pose = oligomer.split_by_chain(1)
     monomer.dump_pdb(str(relaxed_out_path / f'{target_name}.pdb'))
     print(f'Relaxed {target_name}', flush=True)
@@ -128,12 +129,12 @@ def run_process(**inputs):
         return info
     # design
     print(f'Designing {target_name}', flush=True)
-    design_different(oligomer, ref, cycles=design_cycles, scorefxn=scorefxn)
+    design_different(oligomer, ref, cycles=design_cycles, scorefxn=con_scorefxn)
     monomer = oligomer.split_by_chain(1)
     print(f'designed {target_name}', flush=True)
     monomer.dump_pdb(str(tuned_out_path / f'{target_name}.pdb'))
-    info['complex_dG_post'] = scorefxn(oligomer)
-    info['monomer_dG_post'] = scorefxn(monomer)
+    info['complex_dG_post'] = vanilla_scorefxn(oligomer)
+    info['monomer_dG_post'] = vanilla_scorefxn(monomer)
     info['tweaked_sequence'] = monomer.sequence()
     streptavidins = extract_streptavidins(ref, cardinality=2)
     superpose_pose_by_chain(oligomer, streptavidins, 'B', strict=False)
@@ -144,7 +145,7 @@ def run_process(**inputs):
     info.update(**score_interface(minicomplex, 'A_BC'))
     info['status'] = 'tuned'
     vanilla_relax.apply(oligomer)
-    info['designed_dG'] = scorefxn(oligomer)
+    info['designed_dG'] = vanilla_scorefxn(oligomer)
     pose2pdb = oligomer.pdb_info().pose2pdb
     chainA_sele = prc.select.residue_selector.ChainSelector('A')
     for distance in (1, 2, 3, 4, 5, 6, 8, 10, 12):
@@ -154,10 +155,10 @@ def run_process(**inputs):
         info[f'close_residues_{distance}'] = [pose2pdb(r) for r in close_residues]
     res_scores = []
     for i in range(1, monomer.total_residue() + 1):
-        v = pru.vector1_bool(monomer.total_residue())
+        v = pru.vector1_bool(oligomer.total_residue())
         v[i] = 1
         # score only monomer residues, but on oligomer
-        res_scores.append(scorefxn.get_sub_score(oligomer, v))
+        res_scores.append(vanilla_scorefxn.get_sub_score(oligomer, v))
     info['per_res_score'] = res_scores
     info['max_per_res_scores'] = max(res_scores)
     info['end'] = time.time()

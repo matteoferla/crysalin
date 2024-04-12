@@ -358,7 +358,80 @@ inference.num_designs=1000;
 
 CUDA_VISIBLE_DEVICES=0 run_inference.py --config-path=$RFDIFFUSSION_CONFIG hydra.output_subdir=$HOME2/crysalin/output inference.output_prefix=$HOME2/crysalin/output/omicron/omicron3 inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb 'ppi.hotspot_res=[A203,A204,A207,a271,a205,B25,B27,B43,B45,B46,B47,B49,B52,B54,B55,B79,B30,B81,B82,B83,B84,B85,B86,B87,B88,B90,B92,B108,B110,B112,C13,C14,C15,C35,C37,C59,C60,C62,C63,C64,C65,C66,C67,C78,C96,C98,L24,L25]' 'contigmap.contigs=[A5-9/10-20/A24-40/6-20/A47-63/6-20/A67-143/3-5/A147-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' inference.num_designs=1000
 
-#??? Where is pi?
+export EXPERIMENT='pi';
+export OUTPUT_FOLDER=$HOME2/crysalin/output/$EXPERIMENT
+mkdir $OUTPUT_FOLDER;
+export HOTSPOTS='ppi.hotspot_res=[A203,A204,A207,a271,a205,B25,B27,B43,B45,B46,B47,B49,B52,B54,B55,B79,B80,B81,B82,B83,B84,B85,B86,B87,B88,B90,B92,B108,B110,B112,C13,C14,C15,C35,C37,C59,C60,C62,C63,C64,C65,C66,C67,C78,C96,C98,L24,L25]'
+
+CUDA_VISIBLE_DEVICES=0 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output \
+inference.output_prefix=$OUTPUT_FOLDER/$EXPERIMENT_40-47 \
+inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+$HOTSPOTS \
+'contigmap.contigs=[A5-40/6-20/A47-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+inference.num_designs=1000 &
+
+CUDA_VISIBLE_DEVICES=1 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output \
+inference.output_prefix=$OUTPUT_FOLDER/$EXPERIMENT_63-67 \
+inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+$HOTSPOTS \
+'contigmap.contigs=[A5-63/6-20/A67-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+inference.num_designs=1000 & 
+
+CUDA_VISIBLE_DEVICES=2 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output \
+inference.output_prefix=$OUTPUT_FOLDER/$EXPERIMENT_143-149 \
+inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+$HOTSPOTS \
+'contigmap.contigs=[A5-143/6-25/A149-331/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+inference.num_designs=1000 & 
+
+CUDA_VISIBLE_DEVICES=3 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output \
+inference.output_prefix=$OUTPUT_FOLDER/$EXPERIMENT_143-149-157-166 \
+inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+$HOTSPOTS \
+'contigmap.contigs=[A5-143/6-25/A149-157/9-20/A166-331/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+inference.num_designs=1000;
+
+elif [ "$EXPERIMENT" == "pi2" ]; then
+
+export EXPERIMENT='pi';
+export OUTPUT_FOLDER=$HOME2/crysalin/output/$EXPERIMENT
+mkdir $OUTPUT_FOLDER;
+export HOTSPOTS='ppi.hotspot_res=[A203,A204,A207,a271,a205,B25,B27,B43,B45,B46,B47,B49,B52,B54,B55,B79,B80,B81,B82,B83,B84,B85,B86,B87,B88,B90,B92,B108,B110,B112,C13,C14,C15,C35,C37,C59,C60,C62,C63,C64,C65,C66,C67,C78,C96,C98,L24,L25]'
+
+CUDA_VISIBLE_DEVICES=0 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output \
+inference.output_prefix=$OUTPUT_FOLDER/$EXPERIMENT_157-166 \
+inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+$HOTSPOTS \
+'contigmap.contigs=[A5-157/9-20/A166-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+inference.num_designs=1000 &
+
+CUDA_VISIBLE_DEVICES=1 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output \
+inference.output_prefix=$OUTPUT_FOLDER/$EXPERIMENT_107-114 \
+inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+$HOTSPOTS \
+'contigmap.contigs=[A5-107/6-20/A114-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+inference.num_designs=1000 &
+
+CUDA_VISIBLE_DEVICES=3 run_inference.py \
+--config-path=$RFDIFFUSSION_CONFIG \
+hydra.output_subdir=$HOME2/crysalin/output \
+inference.output_prefix=$OUTPUT_FOLDER/$EXPERIMENT_comboplus \
+inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb \
+$HOTSPOTS \
+'contigmap.contigs=[A5-40/6-20/A47-63/6-20/A67-143/6-25/A149-157/9-20/A166-189/9-20/A198-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' \
+inference.num_designs=1000;
 
 CUDA_VISIBLE_DEVICES=1 run_inference.py --config-path=$RFDIFFUSSION_CONFIG hydra.output_subdir=$HOME2/crysalin/output inference.output_prefix=$HOME2/crysalin/output/rho/rho inference.input_pdb=$HOME2/crysalin/pentakaihemimer.relax.pdb 'ppi.hotspot_res=[A203,A204,A207,a271,a205,B25,B27,B43,B45,B46,B47,B49,B52,B54,B55,B79,B30,B81,B82,B83,B84,B85,B86,B87,B88,B90,B92,B108,B110,B112,C13,C14,C15,C35,C37,C59,C60,C62,C63,C64,C65,C66,C67,C78,C96,C98,L24,L25]' 'contigmap.contigs=[A5-9/10-20/A24-40/6-20/A47-51/17-30/A69-139/7-9/A149-158/8-12/A167-331/0 B13-135/0 C13-135/0 K13-135/0 L13-135/0 F304-332/0 a202-331/0]' inference.num_designs=1000
 

@@ -75,7 +75,7 @@ RFdiffusion has a lot of settings. [rfdiffusion](code/job_RFdiffusion.sh) was ru
 with the variable `APPTAINERENV_EXPERIMENT` controlling the experiment,
 see script for each one.
 
-> :construction: :warning: TODO add a picture
+![diversity](images/diversity.png)
 
 
 There were several iterations.
@@ -149,6 +149,7 @@ python $HOME2/crysalin/thread_tune.py
 
 curl -X POST -H 'Content-type: application/json' --data '{"text":"experiment sigma done"}' $SLACK_WEBHOOK
 ```
+
 
 ## Rosetta Remodel
 

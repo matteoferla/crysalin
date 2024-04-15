@@ -2,6 +2,8 @@
 
 The aim is to engineer a better crysalin lattice.
 
+![interface-design](images/interface-design.jpg)
+
 ## Background
 
 Crysalins are an engineered complex that forms a lattice for encapsulating protein for X-ray crystallography.

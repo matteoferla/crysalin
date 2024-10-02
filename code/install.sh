@@ -18,6 +18,9 @@ conda activate $NEW_CONDA_PREFIX
 # common fluff:
 conda env config vars set LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$CONDA_PREFIX:/.singularity.d/libs
 conda env config vars set PYTHONUSERBASE=$CONDA_PREFIX
+export RFDIFFUSION_CONFIG=$HOME2/.cache/RFdiffusion_config/inference
+conda env config vars set RFDIFFUSION_CONFIG=$RFDIFFUSION_CONFIG
+
 conda deactivate
 conda activate $NEW_CONDA_PREFIX
 
@@ -56,10 +59,6 @@ conda install -y nvidia/label/cuda-11.6.2::libcusparse
 conda install -y nvidia/label/cuda-11.6.2::cuda-cudart
 conda install -y nvidia/label/cuda-11.6.2::cuda-cudart-dev
 
-export $HOME2/.cache/RFdiffusion_config/inference
-conda env config vars set RFDIFFUSION_CONFIG=$RFDIFFUSION_CONFIG
-
-cp
 
 
 ????

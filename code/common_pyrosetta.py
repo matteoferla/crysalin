@@ -348,8 +348,10 @@ def create_design_tf(pose:pyrosetta.Pose, design_sele: pr_res.ResidueSelector, d
 
     Remember to do
 
-    relax.set_enable_design(True)
-    relax.set_task_factory(task_factory)
+    ... code-block:: python
+
+        relax.set_enable_design(True)
+        relax.set_task_factory(task_factory)
     """
     #residues_to_design = design_sele.apply(pose)
     # this is default:

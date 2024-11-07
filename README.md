@@ -132,7 +132,7 @@ hydra.output_subdir=$HOME2/crysalin/output inference.output_prefix=$HOME2/crysal
  inference.num_designs=1000
 
 python $HOME2/crysalin/superpose.py
-python $HOME2/crysalin/prep_MPNN.py
+python $HOME2/crysalin/prep_MPNN_v1.py
 
 CUDA_VISIBLE_DEVICES=0  python $CONDA_PREFIX/bin/protein_mpnn_run.py \
 --jsonl_path $WORKPATH'/chains_definitions.jsonl' \

@@ -4,11 +4,11 @@
 
 ## ProteinMPNN
 
-> Script: [code/prep_MPNN.py](code/prep_MPNN.py)
+> Script: [code/prep_MPNN.py](code/prep_MPNN_v1.py)
 
 The helper scripts for ProteinMPNN do not allow variable length protein and are a bit awkward to use.
 The [functional_proteinMPNN_helper.py](code/functional_proteinMPNN_helper.py) is a refactored version called by
-[prep_MPNN.py](code/prep_MPNN.py).
+[prep_MPNN.py](code/prep_MPNN_v1.py).
 
 ## Threading, relaxing & tuning
 

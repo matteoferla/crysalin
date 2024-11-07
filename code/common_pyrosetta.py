@@ -2,8 +2,9 @@ import re
 import json
 import contextlib
 from pathlib import Path
+import pickle
 from types import ModuleType
-from typing import List, Dict, Union, Optional, Sequence, Any
+from typing import List, Dict, Union, Optional, Sequence, Any, Tuple
 import numpy as np
 import pandas as pd
 import pyrosetta
@@ -647,3 +648,14 @@ def write_jsonl(filename: Union[str, Path], data: Any):
     """
     with Path(filename).open('a') as f:
         f.write(json.dumps(data) + '\n')
+
+
+def get_mapping(path) -> Dict[Tuple[str, int], Tuple[str, int]]:
+    """
+    Given an RFdiffusion output return a mapping of the form reference to design.
+    This is obtained by reading the `.trb` file.
+    """
+    if path.suffix != '.trb':
+        path = path.parent / (path.stem + '.trb')
+    data = pickle.load(path.open('rb'))
+    return dict(zip( data['con_ref_pdb_idx'],data['con_hal_pdb_idx']))

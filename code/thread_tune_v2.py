@@ -28,6 +28,7 @@ import pandas as pd
 import pyrosetta
 import pyrosetta_help as ph
 from Bio import SeqIO
+from fragment_elaboration_scripts.colabfold_HTCondor import logs_folder
 from pebble import ProcessPool, ProcessFuture
 
 prc: ModuleType = pyrosetta.rosetta.core
@@ -207,7 +208,7 @@ def get_log(target_name: str, log_path=Path('log.jsonl')):
     if not log_path.exists():
         return None
     with log_path.open('r') as f:
-        logs = json.load(f)
+        logs = [json.loads(line) for line in f]
     for log in logs:
         if log['name'] == target_name:
             return log
@@ -392,7 +393,7 @@ def run_process(target_folder: Path,
     write_log(info, log_path=target_folder / 'log.jsonl')
     return info
 
-def get_novels(target_folder):
+def get_novels(target_folder, log_path):
     """
     Get novel sequences from the seqs folder that are not marked in log_threaded.txt
 
@@ -400,10 +401,10 @@ def get_novels(target_folder):
     :return:
     """
     seqs_folder = target_folder / 'seqs'
-    log = Path('log_threaded.txt').read_text() if  Path('log_threaded.txt').exists() else ''
+    log_block = log_path.read_text()
     seq_paths = []
     for path in seqs_folder.glob('*.fa'):
-        if path.stem in log:
+        if path.stem in log_block:  # it is mentioned?
             continue
         # ## PDB check
         # does it have a PDB?
@@ -437,7 +438,7 @@ def get_max_cores():
 def main(target_folder: Path,
          parent_filename: Path,
          timeout = 60 * 60 * 24):
-    seq_paths = get_novels(target_folder)
+    seq_paths = get_novels(target_folder, log_path=Path(target_folder) / 'log.jsonl')
     futures: List[ProcessFuture] = []
     with ProcessPool(max_workers=get_max_cores() - 1, max_tasks=0) as pool:
         # queue jobs

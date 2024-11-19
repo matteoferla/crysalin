@@ -145,7 +145,7 @@ CUDA_VISIBLE_DEVICES=0  python $CONDA_PREFIX/bin/protein_mpnn_run.py \
 --batch_size 1 \
 --path_to_model_weights $PROTEINMPNN_WEIGHTS;
 
-python $HOME2/crysalin/thread_tune.py
+python $HOME2/crysalin/thread_tune_v1.py
 
 curl -X POST -H 'Content-type: application/json' --data '{"text":"experiment sigma done"}' $SLACK_WEBHOOK
 ```

@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""
+This script has been superseded by v2.
+"""
+
 import os
 import operator
 import string

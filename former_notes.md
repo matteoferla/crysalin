@@ -12,7 +12,7 @@ The [functional_proteinMPNN_helper.py](code/functional_proteinMPNN_helper.py) is
 
 ## Threading, relaxing & tuning
 
-> Script: [code/thread_tune.py](code/thread_tune.py)
+> Script: [code/thread_tune.py](code/thread_tune_v1.py)
 
 I used the threading module from RosettaCM in PyRosetta as opposed to
 brutally substituting each residue sequentially as in original paper.

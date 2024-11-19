@@ -40,7 +40,7 @@ class DefinitionStore:
         # global_fixed_positions
         # passed to --fixed_positions_jsonl
         self.fixed_positions_path = work_path / 'fixed_positions.json'
-        global_fixed_positions = {}
+        self.global_fixed_positions = {}
 
     def read(self, including_definitions=False):
         if including_definitions and self.chains_definitions_path.exists():
@@ -65,9 +65,6 @@ class DefinitionStore:
         with open(self.fixed_positions_path, 'w') as fh:
             json.dump(self.global_fixed_positions, fh)
             fh.write('\n')  # why?
-
-        with open(self.meta_path, 'wb') as fh:
-            pickle.dump(self.metadata, fh)
         return self
 
 
@@ -101,7 +98,7 @@ def get_chainA_sequence(pdbblock: str) -> str:
     return sequence
 
 
-def get_munged_fixed_def_by_trb(path: Path) -> List[int]:
+def get_munged_fixed_def_by_trb(path: Path) -> Dict[str, List[int]]:
     """
     reads the trb file and returns the list of 1-based indices of the mutatated positions
 
@@ -111,15 +108,48 @@ def get_munged_fixed_def_by_trb(path: Path) -> List[int]:
     """
     trb_path = path.parent / (path.stem + '.trb')
     assert trb_path.exists(), f'{trb_path} does not exist'
-    trb: Dict[str, Any] = pickle.load(path.open('rb'))
+    trb: Dict[str, Any] = pickle.load(trb_path.open('rb'))
     definitions = {}
     for chain, resi in trb['con_hal_pdb_idx']: # ('A', 1)
         if chain not in definitions:
             definitions[chain] = []
-        definitions[chain].append(resi)
+        definitions[chain].append(int(resi))
     # ## return all different
     return definitions
 
+def check_done(root_folder='output', ongoing = ()):
+    """
+    This is not called by the script.
+    It is a snippet to check what worked.
+    Prints the stats of each folder in the output folder.
+
+    :param root_folder:
+    :return:
+    """
+    import json
+
+    repeaters = []
+
+    for path in Path(root_folder).glob('*'):
+        if not path.is_dir() or path.name == '.ipynb_checkpoints':
+            continue
+        is_ongoing = path.stem in ongoing
+        if (path / 'fixed_chains.json').exists():
+            n_expected = len(json.load((path / 'fixed_chains.json').open('r')))
+        else:
+            n_expected = -1
+        pdb_names = [p.stem for p in path.glob('*.pdb')]
+        if not (path / 'seqs').exists():
+            seqs_paths = []
+            diff = pdb_names
+        else:
+            pdb_names = [p.stem for p in path.glob('*.pdb')]
+            seqs_paths = [p.stem for p in (path / 'seqs').glob('*.fa')]
+            diff = set(pdb_names) - set(seqs_paths)
+        if len(diff) > 0 and not is_ongoing:
+            repeaters.append(path)
+        print(f'{path} - missing: {len(diff)}, pdbs: {len(pdb_names)}, seqs: {len(seqs_paths)}, json: {n_expected}. Is ongoing {is_ongoing}')
+    return repeaters
 
 # -------------------------------------------
 

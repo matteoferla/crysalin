@@ -305,7 +305,8 @@ def relax_chainA(pose: pyrosetta.Pose, cycles=1, distance=5, scorefxn=None):
 
 
 def thread(template_block, target_seq, target_name, template_name,
-           temp_folder='/data/outerhome/tmp'):
+           fragment_sets=None,
+           temp_folder='/tmp'):
     # load template
     template = pyrosetta.Pose()
     prc.import_pose.pose_from_pdbstring(template, template_block)
@@ -325,7 +326,8 @@ def thread(template_block, target_seq, target_name, template_name,
                                                template_pose=template,
                                                target_name=target_name,
                                                template_name=template_name,
-                                               align=aln
+                                               align=aln,
+                                               fragment_sets=fragment_sets
                                                )
     # no need to superpose. It is already aligned
     # ...
@@ -394,7 +396,7 @@ def design_interface_onA(pose: pyrosetta.Pose, distance: int, cycles = 5, scoref
     relax.set_task_factory(task_factory)
     relax.apply(pose)
 
-def design_different(pose: pyrosetta.Pose, ref: pyrosetta.Pose, cycles = 5, scorefxn=None):
+def design_different_by_aligment(pose: pyrosetta.Pose, ref: pyrosetta.Pose, cycles = 5, scorefxn=None):
     ref = ref.split_by_chain(1)
     ref2pose: dict = align_for_atom_map(pose.split_by_chain(1), ref)
     conserved = list(ref2pose.values())

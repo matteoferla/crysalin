@@ -192,6 +192,8 @@ def dump_pdbgz(pose: pyrosetta.Pose, path: Path):
         f.write(ph.get_pdbstr(pose))
 
 def get_log(target_name: str, log_path=Path('log.jsonl')):
+    if not log_path.exists():
+        return None
     with log_path.open('r') as f:
         logs = json.load(f)
     for log in logs:
@@ -241,11 +243,11 @@ def run_process(target_folder: Path,
     info['status'] = 'ongoing'
     info['is_already_done'] = False
     try:
-        prior = get_log(target_name)
+        prior = get_log(target_name, log_path=target_folder / 'log.jsonl')
         prior['is_already_done'] = True
         if prior:
             return prior
-        write_log(info)
+        write_log(info, log_path=target_folder / 'log.jsonl')
         # housekeeping
         # gz --> `dump_pdbgz`
         raw_out_path = target_folder / 'unrelaxed_pdbs' / f'{target_name}.pdb.gz'
@@ -280,7 +282,7 @@ def run_process(target_folder: Path,
         fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         dump_pdbgz(threaded, raw_out_path)
         info['status'] = 'threaded'
-        write_log(info)
+        write_log(info, log_path=target_folder / 'log.jsonl')
         for idx0 in trb['complex_con_hal_idx0']:
             if idx0 == 0:
                 continue  # pointless/troublesome constrain to self, kind of
@@ -305,7 +307,7 @@ def run_process(target_folder: Path,
         vanilla_relax.apply(threaded)
         info['dG'] = vanilla_scorefxn(threaded)
         info['status'] = 'relaxed'
-        write_log(info)
+        write_log(info, log_path=target_folder / 'log.jsonl')
         dump_pdbgz(threaded, relaxed_out_path)
         relaxed = threaded
 
@@ -346,7 +348,7 @@ def run_process(target_folder: Path,
                 previous_design = current_design
                 previous_complex_dG = current_complex_dG
                 dump_pdbgz(current_design, tuned_out_path)
-                write_log(info)
+                write_log(info, log_path=target_folder / 'log.jsonl')
         designed = current_design
         appraise_itxns(designed)
         chainA_sele = prc.select.residue_selector.ChainSelector('A')
@@ -374,7 +376,7 @@ def run_process(target_folder: Path,
         info['error'] = str(e)
         info['status'] = 'error'
     info['end'] = time.time()
-    write_log(info)
+    write_log(info, log_path=target_folder / 'log.jsonl')
     return info
 
 def get_novels(target_folder):
@@ -464,6 +466,7 @@ def main(target_folder: Path,
                 results.append(dict(error=error.__class__.__name__, error_msg=error_msg))
     df = pd.DataFrame(results)
     df.to_pickle(target_folder / 'tuned.pkl.gz')
+    return df
 
 
 # monomer_block = get_ATOM_only(pdb_path.read_text())
@@ -485,5 +488,6 @@ if __name__ == '__main__':
     parser.add_argument('parent_pdb', type=str, help='A PDB file with the template')
     args = parser.parse_args()
     main(target_folder=Path(args.target_folder), template_filename=Path(args.parent_pdb))
+    print('Done')
 
 

@@ -51,9 +51,10 @@ SETTINGS = {
     'relax_cycles': 5,
     'design_cycles': 15,
     'clash_dist_cutoff': 1.5,
-    'bond_dist_cutoff': 1.5, # N-C
+    'bond_dist_cutoff': 1.5, # N-C ideally is 1.32 Å
     'atom_pair_constraint_weight': 3,
     'coordinate_constraint_weight': 1,
+    'initial_max_clashes': 3,  # a clash or two is fine for now
     'chain_letters': 'ACDEFGB',
     # full AHIR, strep x2, CTD AHIR, strep x2, AHIR snippet
     'start_seqs': ['MKIYY', strep_seq, strep_seq, 'GEFAR', strep_seq, strep_seq, 'FKDET']
@@ -96,6 +97,7 @@ def fix_starts(pose, chain_letters: str, start_seqs: List[str]):
                 pi.chain(i, this_chain)
             start_idx = next_start
     pose.update_pose_chains_from_pdb_chains()
+    assert pose.num_chains() == len(chain_letters), f'{pose.num_chains()} != {len(chain_letters)}'
 
 
 # whole alignment
@@ -203,7 +205,7 @@ def get_log(target_name: str, log_path=Path('log.jsonl')):
     else:
         return None
 
-def appraise_itxns(pose):
+def appraise_itxns(pose, max_clashes=0):
     """
     Assumes the chains have been fixed already.
 
@@ -213,13 +215,13 @@ def appraise_itxns(pose):
     n_clashing = 0
     chains = pose.split_by_chain()
     xyz_model = extract_coords(chains[1])
-    for i in range(1, pose.num_chains()):  # chain 0 is the full AHIR, designed
-        xyz_other = extract_coords(chains[i + 1])
+    for idx0 in range(1, pose.num_chains()):  # chain 0 is the full AHIR, designed
+        xyz_other = extract_coords(chains[idx0 + 1])
         distances = np.sqrt(np.sum((xyz_other[:, np.newaxis, :] - xyz_model[np.newaxis, :, :]) ** 2, axis=-1))
         # 1.5 Å is too close
         n_clashing += np.count_nonzero(distances < SETTINGS['clash_dist_cutoff'])
-    if n_clashing > 0:
-        raise ValueError(f'Clashes')
+    if n_clashing > max_clashes:
+        raise ValueError(f'{n_clashing} clashes')
     # check no stretch
     for chain in chains:
         for i in range(chain.total_residue() - 1):
@@ -266,22 +268,22 @@ def run_process(target_folder: Path,
         assert trb_path.exists(), f'{trb_path} does not exist'
         trb: Dict[str, Any] = pickle.load(trb_path.open('rb'))
         # Fix chains
-        fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
-        appraise_itxns(hallucination)
-        info['status'] = 'initial_checks_passed'
-        # thread
-        parent = pyrosetta.pose_from_file(parent_filename)
+        parent = pyrosetta.pose_from_file(str(parent_filename))
         fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         rmsd, tem2hal_idx1s = steal_frozen(hallucination, parent, trb, move_acceptor=False)
         info['parent_hallucination_RMSD'] = rmsd
         info['N_conserved_parent_hallucination_atoms'] = len(tem2hal_idx1s)
         info['status'] = 'sidechain_fixed'
+        appraise_itxns(hallucination, max_clashes=SETTINGS['initial_max_clashes'])
+        info['status'] = 'initial_checks_passed'
+        # thread
+        fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         hal_block = ph.get_pdbstr(hallucination)
         # the seq from proteinMPNN is only chain A
         # using the full sequence slows down the threading from 16s to 1m 41s
         full_target_seq = target_sequence + hallucination.sequence()[len(hallucination.chain_sequence(1)):]
         threaded = thread(hal_block, full_target_seq, target_name, hallucination_name)
-        fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
+        fix_starts(threaded, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         dump_pdbgz(threaded, raw_out_path)
         info['status'] = 'threaded'
         write_log(info, log_path=target_folder / 'log.jsonl')

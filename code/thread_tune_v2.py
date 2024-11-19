@@ -381,12 +381,12 @@ def run_process(target_folder: Path,
         info['per_res_score'] = res_scores
         info['max_per_res_scores'] = max(res_scores)
 
-
         # hurray:
         info['status'] = 'complete'
     except SETTINGS['exception_to_catch'] as e:
         info['error_type'] = e.__class__.__name__
         info['error'] = str(e)
+        info['traceback'] = traceback.format_exception(e)
         info['status'] = 'error'
     info['end'] = time.time()
     write_log(info, log_path=target_folder / 'log.jsonl')

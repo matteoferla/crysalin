@@ -155,11 +155,12 @@ def check_done(root_folder='output', ongoing = ()):
 
 if __name__ == '__main__':
     # input_folder = 'output_redux/filtered'
-    input_folder = sys.argv[1]
-
     work_path = Path(os.environ.get('WORKPATH', 'output'))
+    assert work_path, 'work_path empty'
+    input_folder = sys.argv[1] if len(sys.argv) > 1 else work_path.as_posix()
+
     defstore = DefinitionStore(work_path)
-    defstore.read(including_definitions=False)
+    defstore.read(including_definitions=False)  # read prior definitions?
 
     n = -1  # <-- positive number: for testing
     paths = [path for path in Path(input_folder).glob('*.pdb')]

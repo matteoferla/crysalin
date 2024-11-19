@@ -109,17 +109,17 @@ def steal_frozen(acceptor: pyrosetta.Pose,
     Copy all the conserved coordinates from the donor to the acceptor.
     These are determined by `trb` dict from RFdiffusion.
 
-    The hallucination is the acceptor, the template is the donor.
+    The hallucination is the acceptor, the parent is the donor.
     The RFdiffused pose is skeleton, but when imported the sidechains are added.
     The theft is done in 3 steps.
 
     1. A mapping of residue idx, atom idx to residue idx, atom idx is made.
-    2. The hallucination is superimposed on the template if move_acceptor is True, else vice versa.
-    3. The coordinates are copied from the template to the hallucination.
+    2. The hallucination is superimposed on the parent if move_acceptor is True, else vice versa.
+    3. The coordinates are copied from the parent to the hallucination.
 
     The term 'ref' gets confusing.
-     hallucination is fixed / mutanda, template is mobile
-    fixed is called ref, but ref means template for RFdiffusion so it is flipped)
+     hallucination is fixed / mutanda, parent is mobile
+    fixed is called ref, but ref means parent for RFdiffusion so it is flipped)
 
 
     :param acceptor:
@@ -230,15 +230,15 @@ def appraise_itxns(pose):
 def run_process(target_folder: Path,
                 target_name: str,
                 target_sequence: str,
-                template_name: str,
-                template_filename: str,
+                hallucination_name: str,
+                parent_filename: str,
                 metadata: dict):
     # start info
     info = metadata.copy()
     info['folder'] = target_folder.as_posix()
     info['target_name'] = target_name
-    info['target_sequence'] = target_sequence
-    info['template_name'] = template_name
+    info['target_sequence'] = target_sequence  # the seq wanted by proteinMPNN not the seq of the hallucination
+    info['hallucination_name'] = hallucination_name
     info['name'] = target_name
     info['start'] = time.time()
     info['status'] = 'ongoing'
@@ -259,10 +259,10 @@ def run_process(target_folder: Path,
         os.makedirs(relaxed_out_path.parent, exist_ok=True)
         os.makedirs(tuned_out_path.parent, exist_ok=True)
         # read hallucination
-        hallucination_pdb_path = target_folder / f'{target_name}.pdb'
+        hallucination_pdb_path = target_folder / f'{hallucination_name}.pdb'
         hallucination: pyrosetta.Pose = pyrosetta.pose_from_file(hallucination_pdb_path.as_posix())
         # read metadata
-        trb_path =  target_folder / f'{template_name}.trb'
+        trb_path =  target_folder / f'{hallucination_name}.trb'
         assert trb_path.exists(), f'{trb_path} does not exist'
         trb: Dict[str, Any] = pickle.load(trb_path.open('rb'))
         # Fix chains
@@ -270,17 +270,17 @@ def run_process(target_folder: Path,
         appraise_itxns(hallucination)
         info['status'] = 'initial_checks_passed'
         # thread
-        template = pyrosetta.pose_from_file(template_filename)
+        parent = pyrosetta.pose_from_file(parent_filename)
         fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
-        rmsd, tem2hal_idx1s = steal_frozen(hallucination, template, trb, move_acceptor=False)
-        info['template_hallucination_RMSD'] = rmsd
-        info['N_conserved_template_hallucination_atoms'] = len(tem2hal_idx1s)
+        rmsd, tem2hal_idx1s = steal_frozen(hallucination, parent, trb, move_acceptor=False)
+        info['parent_hallucination_RMSD'] = rmsd
+        info['N_conserved_parent_hallucination_atoms'] = len(tem2hal_idx1s)
         info['status'] = 'sidechain_fixed'
         hal_block = ph.get_pdbstr(hallucination)
         # the seq from proteinMPNN is only chain A
         # using the full sequence slows down the threading from 16s to 1m 41s
         full_target_seq = target_sequence + hallucination.sequence()[len(hallucination.chain_sequence(1)):]
-        threaded = thread(hal_block, full_target_seq, target_name, template_name)
+        threaded = thread(hal_block, full_target_seq, target_name, hallucination_name)
         fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         dump_pdbgz(threaded, raw_out_path)
         info['status'] = 'threaded'
@@ -424,7 +424,7 @@ def get_max_cores():
 
 
 def main(target_folder: Path,
-         template_filename: Path,
+         parent_filename: Path,
          timeout = 60 * 60 * 24):
     seq_paths = get_novels(target_folder)
     futures: List[ProcessFuture] = []
@@ -435,18 +435,22 @@ def main(target_folder: Path,
             for seq_record in SeqIO.parse(path, 'fasta'):
                 # ## Read metadata
                 metadata = {k: float(v) for k, v in re.findall(r'([\w_]+)=([\d.]+)', seq_record.description)}
-                template_name: str = path.stem  # noqa
+                hallucination_name: str = path.stem  # noqa
                 target_sequence: str = str(seq_record.seq) # noqa
-                target_name = f"{template_name}{'ABCDEFGHIJKLMNOPQRSTUVWXYZØ'[int(metadata.get('sample', -1))]}"
+                target_name = f"{hallucination_name}{'ABCDEFGHIJKLMNOPQRSTUVWXYZØ'[int(metadata.get('sample', -1))]}"
                 future: ProcessFuture = pool.schedule(run_process,
+                                                      # target = seq-variant of hallucination
+                                                      # parent = WT template
+                                                      # hallucination = RFdiffused skeleton
                                                       kwargs=dict(target_folder=target_folder,
                                                                   target_name=target_name,
                                                                   target_sequence=target_sequence,
-                                                                  template_name=template_name,
-                                                                  template_filename=template_filename,
+                                                                  hallucination_name=hallucination_name,
+                                                                  parent_filename=parent_filename,
                                                                   metadata=metadata,
                                                                   ),
                                                       timeout=timeout)
+
                 futures.append(future)
         print(f'Submitted {len(futures)} processes')
         # ## Get results
@@ -487,7 +491,7 @@ if __name__ == '__main__':
     parser.add_argument('target_folder', type=str, help='A folder with seqs to thread')
     parser.add_argument('parent_pdb', type=str, help='A PDB file with the template')
     args = parser.parse_args()
-    main(target_folder=Path(args.target_folder), template_filename=Path(args.parent_pdb))
+    main(target_folder=Path(args.target_folder), parent_filename=Path(args.parent_pdb))
     print('Done')
 
 

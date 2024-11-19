@@ -244,6 +244,7 @@ def run_process(target_folder: Path,
     info['status'] = 'ongoing'
     info['is_already_done'] = False
     try:
+        init_pyrosetta()
         prior = get_log(target_name, log_path=target_folder / 'log.jsonl')
         if prior:
             prior['is_already_done'] = True
@@ -258,7 +259,7 @@ def run_process(target_folder: Path,
         os.makedirs(relaxed_out_path.parent, exist_ok=True)
         os.makedirs(tuned_out_path.parent, exist_ok=True)
         # read hallucination
-        hallucination_pdb_path = target_folder / f'{template_name}.pdb'
+        hallucination_pdb_path = target_folder / f'{target_name}.pdb'
         hallucination: pyrosetta.Pose = pyrosetta.pose_from_file(hallucination_pdb_path.as_posix())
         # read metadata
         trb_path =  target_folder / f'{template_name}.trb'
@@ -425,8 +426,6 @@ def get_max_cores():
 def main(target_folder: Path,
          template_filename: Path,
          timeout = 60 * 60 * 24):
-    print('\n## Init PyRosetta\n')
-    init_pyrosetta()
     seq_paths = get_novels(target_folder)
     futures: List[ProcessFuture] = []
     with ProcessPool(max_workers=get_max_cores() - 1, max_tasks=0) as pool:

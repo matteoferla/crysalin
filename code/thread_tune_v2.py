@@ -28,7 +28,6 @@ import pandas as pd
 import pyrosetta
 import pyrosetta_help as ph
 from Bio import SeqIO
-from fragment_elaboration_scripts.colabfold_HTCondor import logs_folder
 from pebble import ProcessPool, ProcessFuture
 
 prc: ModuleType = pyrosetta.rosetta.core

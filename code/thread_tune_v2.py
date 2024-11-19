@@ -183,6 +183,15 @@ def steal_frozen(acceptor: pyrosetta.Pose,
         to_move_to_xyz.append(donor.residue(donor_res_idx1).xyz(donor_atm_idx1))
 
     acceptor.batch_set_xyz(to_move_atomIDs, to_move_to_xyz)
+
+    # ## Fix HIE/HID the brutal way
+    v = prc.select.residue_selector.ResidueNameSelector('HIS').apply(acceptor)
+    relax = prp.relax.FastRelax(prp.core.scoring.get_score_function(), 1)
+    movemap = pyrosetta.MoveMap()
+    movemap.set_bb(False)
+    movemap.set_chi(v)
+    movemap.set_jump(False)
+    relax.apply(acceptor)
     return rmsd, donor2acceptor_idx1s
 
 def write_log(info, log_path=Path('log.jsonl')):
@@ -324,7 +333,7 @@ def run_process(target_folder: Path,
         previous_mono_dG = vanilla_scorefxn(previous_design.split_by_chain(1))
         for cycle in range(SETTINGS['design_cycles']):
             task_factory: prc.pack.task.TaskFactory = create_design_tf(relaxed, design_sele=resi_sele, distance=0)
-            relax = pyrosetta.rosetta.protocols.relax.FastRelax(vanilla_relax, 1)  # one cycle at a time
+            relax = pyrosetta.rosetta.protocols.relax.FastRelax(vanilla_scorefxn, 1)  # one cycle at a time
             relax.set_enable_design(True)
             relax.set_task_factory(task_factory)
             current_design = previous_design.clone()

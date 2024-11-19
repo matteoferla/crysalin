@@ -400,7 +400,7 @@ def get_novels(target_folder, log_path):
     :return:
     """
     seqs_folder = target_folder / 'seqs'
-    log_block = log_path.read_text()
+    log_block = log_path.read_text() if log_path.exists() else ''
     seq_paths = []
     for path in seqs_folder.glob('*.fa'):
         if path.stem in log_block:  # it is mentioned?

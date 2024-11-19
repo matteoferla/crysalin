@@ -187,7 +187,7 @@ def steal_frozen(acceptor: pyrosetta.Pose,
 
     # ## Fix HIE/HID the brutal way
     v = prc.select.residue_selector.ResidueNameSelector('HIS').apply(acceptor)
-    relax = prp.relax.FastRelax(prp.core.scoring.get_score_function(), 1)
+    relax = prp.relax.FastRelax(pyrosetta.get_score_function(), 1)
     movemap = pyrosetta.MoveMap()
     movemap.set_bb(False)
     movemap.set_chi(v)

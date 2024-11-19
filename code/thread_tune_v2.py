@@ -47,6 +47,7 @@ FTypeIdx = int  # 1-indexed
 strep_seq = 'MEAGI'
 
 SETTINGS = {
+    'exception_to_catch': Exception,
     'relax_cycles': 5,
     'design_cycles': 15,
     'clash_dist_cutoff': 1.5,
@@ -244,8 +245,8 @@ def run_process(target_folder: Path,
     info['is_already_done'] = False
     try:
         prior = get_log(target_name, log_path=target_folder / 'log.jsonl')
-        prior['is_already_done'] = True
         if prior:
+            prior['is_already_done'] = True
             return prior
         write_log(info, log_path=target_folder / 'log.jsonl')
         # housekeeping
@@ -371,7 +372,7 @@ def run_process(target_folder: Path,
 
         # hurray:
         info['status'] = 'complete'
-    except Exception as e:
+    except SETTINGS['exception_to_catch'] as e:
         info['error_type'] = e.__class__.__name__
         info['error'] = str(e)
         info['status'] = 'error'

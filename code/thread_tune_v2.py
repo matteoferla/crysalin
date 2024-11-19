@@ -28,6 +28,7 @@ import pandas as pd
 import pyrosetta
 import pyrosetta_help as ph
 from Bio import SeqIO
+from fragment_elaboration_scripts.md_run import template_filename
 from pebble import ProcessPool, ProcessFuture
 
 prc: ModuleType = pyrosetta.rosetta.core
@@ -44,6 +45,8 @@ from typing import List, Any, Dict, Tuple
 CTypeIdx = int  # 0-indexed
 FTypeIdx = int  # 1-indexed
 
+strep_seq = 'MEAGI'
+
 SETTINGS = {
     'relax_cycles': 5,
     'design_cycles': 15,
@@ -51,6 +54,9 @@ SETTINGS = {
     'bond_dist_cutoff': 1.5, # N-C
     'atom_pair_constraint_weight': 3,
     'coordinate_constraint_weight': 1,
+    'chain_letters': 'ACDEFGB',
+    # full AHIR, strep x2, CTD AHIR, strep x2, AHIR snippet
+    'start_seqs': ['MKIYY', strep_seq, strep_seq, 'GEFAR', strep_seq, strep_seq, 'FKDET']
 }
 
 # --------------------------------
@@ -256,16 +262,13 @@ def run_process(target_folder: Path,
         trb_path =  target_folder / f'{template_name}.trb'
         assert trb_path.exists(), f'{trb_path} does not exist'
         trb: Dict[str, Any] = pickle.load(trb_path.open('rb'))
-        # count Strep intxns
-        strep_seq = 'MEAGI'
-        # full AHIR, strep x2, CTD AHIR, strep x2, AHIR snippet
-        start_seqs = ['MKIYY', strep_seq, strep_seq, 'GEFAR', strep_seq, strep_seq, 'FKDET']
-        fix_starts(hallucination, chain_letters='ACDEFGB', start_seqs=start_seqs)
+        # Fix chains
+        fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         appraise_itxns(hallucination)
         info['status'] = 'initial_checks_passed'
         # thread
         template = pyrosetta.pose_from_file(template_filename)
-        fix_starts(template, chain_letters='ACDEFGB', start_seqs=start_seqs)
+        fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         rmsd, tem2hal_idx1s = steal_frozen(hallucination, template, trb, move_acceptor=False)
         info['template_hallucination_RMSD'] = rmsd
         info['N_conserved_template_hallucination_atoms'] = len(tem2hal_idx1s)
@@ -275,7 +278,7 @@ def run_process(target_folder: Path,
         # using the full sequence slows down the threading from 16s to 1m 41s
         full_target_seq = target_sequence + hallucination.sequence()[len(hallucination.chain_sequence(1)):]
         threaded = thread(hal_block, full_target_seq, target_name, template_name)
-        fix_starts(threaded, chain_letters='ACDEFGB', start_seqs=start_seqs)
+        fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
         dump_pdbgz(threaded, raw_out_path)
         info['status'] = 'threaded'
         write_log(info)
@@ -417,8 +420,9 @@ def get_max_cores():
 # --------------------------------
 
 
-def main(target_folder: Path, timeout = 60 * 60 * 24):
-    template_filename = 'pentakaihemimer_renumbered.pdb'  # todo: remove hardcoding
+def main(target_folder: Path,
+         template_filename: Path,
+         timeout = 60 * 60 * 24):
     print('\n## Init PyRosetta\n')
     init_pyrosetta()
     seq_paths = get_novels(target_folder)
@@ -479,7 +483,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Thread and tune a sequence onto a template')
     parser.add_argument('target_folder', type=str, help='A folder with seqs to thread')
+    parser.add_argument('parent_pdb', type=str, help='A PDB file with the template')
     args = parser.parse_args()
-    main(target_folder=Path(args.target_folder))
+    main(target_folder=Path(args.target_folder), template_filename=Path(args.parent_pdb))
 
 

@@ -47,6 +47,7 @@ FTypeIdx = int  # 1-indexed
 strep_seq = 'MEAGI'
 
 SETTINGS = {
+    'timeout': 60 * 60 * 24,  # 24 hours
     'exception_to_catch': Exception,
     'relax_cycles': 5,
     'design_cycles': 15,
@@ -244,6 +245,16 @@ def run_process(target_folder: Path,
                 hallucination_name: str,
                 parent_filename: str,
                 metadata: dict):
+    """
+
+    :param target_folder: folder with the RFdiffusion results
+    :param target_name: name of the construct with a given sequence (eg. 'beta_0A')
+    :param target_sequence: ProteinMPNN sequence
+    :param hallucination_name: RFdiffusion output PDB 'hallucination'  (eg. 'beta_0')
+    :param parent_filename: the template pdb used for the hallucination
+    :param metadata: a dictionary of useless info
+    :return:
+    """
     # start info
     info = metadata.copy()
     info['folder'] = target_folder.as_posix()
@@ -412,7 +423,7 @@ def get_novels(target_folder, log_path):
             print(f'{path.stem} is missing ({pdb_path})', flush=True)
             continue
         # is it done already? yet not logged?!
-        if (target_folder / 'unrelaxed_pdbs' / f'{path.stem}Ø.pdb').exists():
+        if (target_folder / 'unrelaxed_pdbs' / f'{path.stem}Ø.pdb.gz').exists():
             print(f'P{path.stem} done already')
             with Path('log_threaded.txt').open('a') as fh:
                 fh.write(f'{path.stem}\toutput exists but no data\n')
@@ -436,7 +447,7 @@ def get_max_cores():
 
 def main(target_folder: Path,
          parent_filename: Path,
-         timeout = 60 * 60 * 24):
+         timeout = SETTINGS['timeout']):
     seq_paths = get_novels(target_folder, log_path=Path(target_folder) / 'log.jsonl')
     futures: List[ProcessFuture] = []
     with ProcessPool(max_workers=get_max_cores() - 1, max_tasks=0) as pool:
@@ -501,8 +512,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Thread and tune a sequence onto a template')
     parser.add_argument('target_folder', type=str, help='A folder with seqs to thread')
     parser.add_argument('parent_pdb', type=str, help='A PDB file with the template')
+    parser.add_argument('--timeout', type=int, default=SETTINGS['timeout'], help='Timeout for each process')
+    parser.add_argument('--relax_cycles', type=int, default=SETTINGS['relax_cycles'], help='Number of relax cycles')
+    parser.add_argument('--design_cycles', type=int, default=SETTINGS['design_cycles'], help='Number of design cycles')
+
     args = parser.parse_args()
-    main(target_folder=Path(args.target_folder), parent_filename=Path(args.parent_pdb))
+    SETTINGS['timeout'] = int(args.timeout)
+    SETTINGS['relax_cycles'] = int(args.relax_cycles)
+    SETTINGS['design_cycles'] = int(args.design_cycles)
+    main(target_folder=Path(args.target_folder),
+         parent_filename=Path(args.parent_pdb))
     print('Done')
 
 

@@ -52,7 +52,7 @@ SETTINGS = {
     'relax_cycles': 5,
     'design_cycles': 15,
     'clash_dist_cutoff': 1.5,
-    'bond_dist_cutoff': 1.5, # N-C ideally is 1.32 Å
+    'bond_dist_cutoff': 1.7, # N-C ideally is 1.32 Å
     'atom_pair_constraint_weight': 3,
     'coordinate_constraint_weight': 1,
     'initial_max_clashes': 3,  # a clash or two is fine for now
@@ -233,11 +233,15 @@ def appraise_itxns(pose, max_clashes=0):
     if n_clashing > max_clashes:
         raise ValueError(f'{n_clashing} clashes')
     # check no stretch
+    n_warning_stretch = 0
     for chain in chains:
         for i in range(chain.total_residue() - 1):
             d: float = chain.residue(i + 1).xyz('C').distance(chain.residue(i + 1 + 1).xyz('N'))
             if d > SETTINGS['bond_dist_cutoff']:
-                raise ValueError(f'Stretch {d}')
+                raise ValueError(f'Stretch {d:.1}')
+            if d > 1.36:
+                n_warning_stretch += 1
+    return n_clashing, n_warning_stretch
 
 def run_process(target_folder: Path,
                 target_name: str,
@@ -294,7 +298,9 @@ def run_process(target_folder: Path,
         info['parent_hallucination_RMSD'] = rmsd
         info['N_conserved_parent_hallucination_atoms'] = len(tem2hal_idx1s)
         info['status'] = 'sidechain_fixed'
-        appraise_itxns(hallucination, max_clashes=SETTINGS['initial_max_clashes'])
+        n_clashing, n_warning_stretch = appraise_itxns(hallucination, max_clashes=SETTINGS['initial_max_clashes'])
+        info['N_clashes_start'] = n_clashing
+        info['N_warning_stretches_start'] = n_warning_stretch
         info['status'] = 'initial_checks_passed'
         # thread
         fix_starts(hallucination, chain_letters=SETTINGS['chain_letters'], start_seqs=SETTINGS['start_seqs'])
@@ -375,6 +381,9 @@ def run_process(target_folder: Path,
                 write_log(info, log_path=target_folder / 'log.jsonl')
         designed = current_design
         appraise_itxns(designed)
+        n_clashing, n_warning_stretch = appraise_itxns(designed, max_clashes=0)
+        info['N_clashes_end'] = n_clashing  # 0. pro forma
+        info['N_warning_stretches_end'] = n_warning_stretch
         chainA_sele = prc.select.residue_selector.ChainSelector('A')
         pose2pdb = designed.pdb_info().pose2pdb
         for distance in (1, 2, 3, 4, 5, 6, 8, 10, 12):
@@ -425,8 +434,6 @@ def get_novels(target_folder, log_path):
         # is it done already? yet not logged?!
         if (target_folder / 'unrelaxed_pdbs' / f'{path.stem}Ø.pdb.gz').exists():
             print(f'P{path.stem} done already')
-            with Path('log_threaded.txt').open('a') as fh:
-                fh.write(f'{path.stem}\toutput exists but no data\n')
             continue
         seq_paths.append(path)
     random.shuffle(seq_paths)

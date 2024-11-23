@@ -291,7 +291,7 @@ def get_novels(target_folder, log_path):
             continue
         # is it done already? yet not logged?!
         if (target_folder / 'unrelaxed_pdbs' / f'{path.stem}Ø.pdb.gz').exists():
-            print(f'P{path.stem} done already')
+            print(f'{path.stem} done already')
             continue
         seq_paths.append(path)
     random.shuffle(seq_paths)

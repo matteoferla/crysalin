@@ -4,12 +4,13 @@ version 3.
 This script generates the files of ProteinMPNN,
 based on the trb file, which I did not realise had the sequence.
 """
-
+import random
 import re
 import json
 import os
 import sys
 import pickle
+import random
 import pandas as pd
 from pathlib import Path
 # this is a refactored version of the original MPNN helpers
@@ -164,7 +165,7 @@ if __name__ == '__main__':
 
     n = -1  # <-- positive number: for testing
     paths = [path for path in Path(input_folder).glob('*.pdb')]
-
+    random.shuffle(paths)
     ref_seq = get_chainA_sequence(Path('pentakaihemimer_renumbered.pdb').read_text())
     for path in paths:
         if 'complex' in path.stem:

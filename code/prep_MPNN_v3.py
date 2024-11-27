@@ -161,23 +161,24 @@ if __name__ == '__main__':
     assert work_path, 'work_path empty'
     input_folder = sys.argv[1] if len(sys.argv) > 1 else work_path.as_posix()
     suffix = sys.argv[2] if len(sys.argv) > 2 else ''
+    # positive number: for testing or limiting
+    n = int(sys.argv[3]) if len(sys.argv) > 3 else -1
 
     defstore = DefinitionStore(work_path, suffix=suffix)
     #defstore.read(including_definitions=False)  # read prior definitions?
 
-    n = -1  # <-- positive number: for testing
     paths = [path for path in Path(input_folder).glob('*.pdb')]
     random.shuffle(paths)
     ref_seq = get_chainA_sequence(Path('pentakaihemimer_renumbered.pdb').read_text())
     for path in paths:
         if 'complex' in path.stem:
             continue
+        if (work_path / f'seqs/{path.stem}.fa').exists():
+            continue
         n -= 1
         if n == 0:
             print('break')
             break
-        if (work_path / f'seqs/{path.stem}.fa').exists():
-            continue
         # chain and seq def
         name = path.stem
         print(f'Prepping {name}', flush=True)

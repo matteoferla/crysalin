@@ -21,26 +21,27 @@ from Bio.Align import substitution_matrices, PairwiseAligner, Alignment
 
 # -------------------------------------------
 class DefinitionStore:
-    def __init__(self, work_path = None):
+    def __init__(self, work_path = None, suffix=''):
         # work path
         if work_path is None:
             work_path = Path(os.environ.get('WORKPATH', 'output'))
         self.work_path = work_path
+        self.suffix = suffix
 
         # ## chain definitions
         # this is the only real JSONL file
         # passed to --jsonl_path
-        self.chains_definitions_path = work_path / 'chains_definitions.jsonl'
+        self.chains_definitions_path = work_path / f'chains_definitions{self.suffix}.jsonl'
         self.definitions = []  # appended, no need to re-read...
 
         # ## global_fixed_chains
         # passed to --chain_id_jsonl
-        self.fixed_chains_path = work_path / 'fixed_chains.json'
+        self.fixed_chains_path = work_path / f'fixed_chains{self.suffix}.json'
         self.global_fixed_chains: Dict[str, List[List[str]]] = {}
 
         # global_fixed_positions
         # passed to --fixed_positions_jsonl
-        self.fixed_positions_path = work_path / 'fixed_positions.json'
+        self.fixed_positions_path = work_path / f'fixed_positions{self.suffix}.json'
         self.global_fixed_positions = {}
 
     def read(self, including_definitions=False):
@@ -159,9 +160,10 @@ if __name__ == '__main__':
     work_path = Path(os.environ.get('WORKPATH', 'output'))
     assert work_path, 'work_path empty'
     input_folder = sys.argv[1] if len(sys.argv) > 1 else work_path.as_posix()
+    suffix = sys.argv[2] if len(sys.argv) > 2 else ''
 
-    defstore = DefinitionStore(work_path)
-    defstore.read(including_definitions=False)  # read prior definitions?
+    defstore = DefinitionStore(work_path, suffix=suffix)
+    #defstore.read(including_definitions=False)  # read prior definitions?
 
     n = -1  # <-- positive number: for testing
     paths = [path for path in Path(input_folder).glob('*.pdb')]

@@ -245,3 +245,11 @@ Cutout
         f.write(json.dumps(info) + '\n')
     return info
 ```
+
+
+```pymol
+disable pentakaihemimer_renumbered;
+[cmd.align(f'{name} and chain A', 'pentakaihemimer_renumbered and chain A') for name in cmd.get_names('objects', 1)];
+enable pentakaihemimer_renumbered;
+color black, element C and pentakaihemimer_renumbered;
+```

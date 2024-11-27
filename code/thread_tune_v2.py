@@ -39,7 +39,7 @@ pr_conf: ModuleType = pyrosetta.rosetta.core.conformation
 pr_scoring: ModuleType = pyrosetta.rosetta.core.scoring
 pr_options: ModuleType = pyrosetta.rosetta.basic.options
 from common_pyrosetta import (thread, extract_coords, create_design_tf,
-                              freeze_atom, init_pyrosetta,
+                              freeze_atom, init_pyrosetta, constrain_chainbreak,
                               fix_starts, steal_frozen,
                               appraise_itxns)
 from typing import List, Any, Dict, Tuple
@@ -165,10 +165,21 @@ def run_process(target_folder: Path,
         dump_pdbgz(threaded, raw_out_path)
         info['status'] = 'threaded'
         write_log(info, log_path=target_folder / 'log.jsonl')
+        # freeze the conserved atoms
         for idx0 in trb['complex_con_hal_idx0']:
             if idx0 == 0:
                 continue  # pointless/troublesome constrain to self, kind of
             freeze_atom(pose=threaded, frozen_index=idx0+1, ref_index=1)  # coordinate constraint
+        # enforce abolition of chainbreaks in Chain A
+        for i in range(1, threaded.sequence().find('KDETET') + 1):
+            constrain_chainbreak(threaded, i)
+        # this is redundant with freezing all conserved atoms
+        # ref_index = threaded.chain_begin(2)
+        # freeze_atom(pose=threaded, frozen_index=threaded.chain_end(1), ref_index=ref_index)
+        # freeze_atom(pose=threaded, frozen_index=threaded.chain_end(2), ref_index=ref_index)
+        # for i in range(3, threaded.num_chains() + 1):
+        #     freeze_atom(pose=threaded, frozen_index=threaded.chain_begin(i), ref_index=ref_index)
+        #     freeze_atom(pose=threaded, frozen_index=threaded.chain_end(i), ref_index=ref_index)
         con_scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
         vanilla_scorefxn: pr_scoring.ScoreFunction = pyrosetta.get_fa_scorefxn()
         con_scorefxn.set_weight(pr_scoring.ScoreType.atom_pair_constraint, SETTINGS['atom_pair_constraint_weight'])

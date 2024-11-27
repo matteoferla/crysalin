@@ -3,6 +3,10 @@ version 3.
 
 This script generates the files of ProteinMPNN,
 based on the trb file, which I did not realise had the sequence.
+
+... code-block: bash
+
+    prep_MPNN_v3.py <input_folder> <suffix> <n>
 """
 import random
 import re

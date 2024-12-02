@@ -253,3 +253,23 @@ disable pentakaihemimer_renumbered;
 enable pentakaihemimer_renumbered;
 color black, element C and pentakaihemimer_renumbered;
 ```
+
+```pymol
+set cartoon_gap_cutoff, 0
+disable pentakaihemimer_renumbered;
+[cmd.align(f'{name} and chain A', 'pentakaihemimer_renumbered and chain A') for name in cmd.get_names('objects', 1)];
+enable pentakaihemimer_renumbered;
+color grey70, element C and pentakaihemimer_renumbered and chain A;
+color grey20, element C and pentakaihemimer_renumbered and not chain A;
+select modded, ....
+hide cartoon
+show cartoon, pentakaihemimer_renumbered;
+show cartoon, modded
+set_view (\
+     0.916602492,   -0.367757171,    0.156793162,\
+     0.363046765,    0.929909706,    0.058749560,\
+    -0.167411312,    0.003071988,    0.985879421,\
+     0.000087082,   -0.000070468, -193.293365479,\
+    -8.805811882,    2.863199711,    7.947916031,\
+   128.772384644,  257.809692383,  -20.000000000 )
+```

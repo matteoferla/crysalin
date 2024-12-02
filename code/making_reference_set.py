@@ -2,7 +2,7 @@ import pickle
 from pathlib import Path
 import yaml
 
-with open('experiments-new.yaml', 'r') as file:
+with open('experiments_v2.yaml', 'r') as file:
     experiment_definitions = yaml.safe_load(file)
 experiment_definitions['original'] = {'codename': 'original', 'contig': '[A5-331/0 B1-651/0]', }
 

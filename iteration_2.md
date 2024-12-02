@@ -19,26 +19,6 @@ The design definitions were moved to a YAML file [experiments_v2.yaml](experimen
 The template is `pentakaihemimer_renumbered.pdb`.
 Hotspots were redefined to be more specific.
 
-
-
-Mid helix:
-
-
-Side helix:
-#Helix that sticks up
-    codename: side
-    change: 64-66
-    contig: '[A5-63/6-20/A67-331/0 B1-651/0]'
-    hotspots: '[B124,B125,B126,B127,B171,B173,B174,B175,B176,B177,B178,B178,B182,B207,B209]'
-
-Post-tag:
-
-
-Pocket-fill:
-# 
-
-
-
 ### Bed
 
 This is a loop that sits on the Rossmann fold.
@@ -61,6 +41,13 @@ Later definitions:
 ![img.png](images/bed_example.png)
 
 ### Side helix
+
+A helix on the side that sticks up
+
+    codename: side
+    change: 64-66
+    contig: '[A5-63/6-20/A67-331/0 B1-651/0]'
+    hotspots: '[B124,B125,B126,B127,B171,B173,B174,B175,B176,B177,B178,B178,B182,B207,B209]'
 
 ![img.png](images/side_topdown.png)
 ![img.png](images/side_example.png)
@@ -113,12 +100,30 @@ Helix that sticks up. But keep Y144!
 ![img.png](images/inner_example.png)
 
 ## Job submission
+[pipeline.ipynb](code/iteration_2_slurm/pipeline.ipynb)
 
-TODO FINISH WRITING!
+Say the experiment is bed4B (the notebook will generate the following commands):
+```bash
+export NUMDESIGNS=1000;
+export EXPERIMENT=bed4B;
+export HOTSPOTS='[B37,B39,B41,B43,B70,B71]';
+export CONTIGMAP='[A5-9/14-32/A24-331/0 B1-651/0]';
+sbatch rf.slurm.sh;
+
+export WORKPATH_ROOT=👾👾/output
+export WORKPATH=$WORKPATH_ROOT/bed4B;
+sbatch proteinMPNN.slurm.sh;
+
+export EXPERIMENT=bed4B;
+sbatch tune.slurm.sh;
+
+export EXPERIMENT=bed4B;
+sbatch rescore.slurm.sh;
+```
 
 ## Results
 
-TODO FINISH WRITING!
+**TODO FINISH WRITING**
 
 Bed loop:
 ![bed.png](designs_v2/bed/bed.png)

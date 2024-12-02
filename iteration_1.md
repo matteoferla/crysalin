@@ -11,7 +11,7 @@ making the end result a bit of a mess and like this `eta_comboplus_104F.pdb`.
 
 ## RFdiffusion
 
-RFdiffusion has a lot of settings. [rfdiffusion](code/iteration_1_slurm/job_RFdiffusion.sh) was run in the cluster
+RFdiffusion has a lot of settings. [rfdiffusion](code/slurm/job_RFdiffusion.sh) was run in the cluster
 with the variable `APPTAINERENV_EXPERIMENT` controlling the experiment,
 see script for each one.
 

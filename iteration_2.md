@@ -125,28 +125,57 @@ sbatch rescore.slurm.sh;
 
 **TODO FINISH WRITING**
 
-Bed loop:
+### Bed loop
 ![bed.png](designs_v2/bed/bed.png)
 
-Inner loop:
+* Files: [bed](designs_v2/bed)
+* PyMOL session: [bed.pse](designs_v2/bed/bed.pse)
+* Sequences: [bed.fa](designs_v2/bed/bed.fa) 
+
+### Inner loop
 ![inner.png](designs_v2/inner/inner.png)
 
-Mid helix:
+* Files: [inner](designs_v2/inner)
+* PyMOL session: [inner.pse](designs_v2/inner/inner.pse)
+* Sequences: [inner.fa](designs_v2/inner/inner.fa)
+
+### Mid helix
 ![mid.png](designs_v2/mid/mid.png)
 
-Side helix:
+* Files: [mid](designs_v2/mid)
+* PyMOL session: [mid.pse](designs_v2/mid/mid.pse)
+* Sequences: [mid.fa](designs_v2/mid/mid.fa)
+
+### Side helix
 ![side.png](designs_v2/side/side.png)
 
-Post-tag:
+* Files: [side](designs_v2/side)
+* PyMOL session: [side.pse](designs_v2/side/side.pse)
+* Sequences: [side.fa](designs_v2/side/side.fa)
+
+### Post-tag
 ![posttag.png](designs_v2/posttag/posttag.png)
 
-Pocket fill:
+* Files: [posttag](designs_v2/posttag)
+* PyMOL session: [posttag.pse](designs_v2/posttag/posttag.pse)
+* Sequences: [posttag.fa](designs_v2/posttag/posttag.fa)
+
+### Pocket fill
 ![pocketfill.png](designs_v2/pocket/pocket.png)
 
+* Files: [pocketfill](designs_v2/pocket)
+* PyMOL session: [pocketfill.pse](designs_v2/pocket/pocket.pse)
+* Sequences: [pocketfill.fa](designs_v2/pocket/pocket.fa)
+
+### Heavies
 Discussion point. The selection tends to favour smaller designs.
 The following are the larger designs:
 
 ![heavies.png](images/heavies/heavies.png)
+
+* Files: [heavies](designs_v2/heavies)
+* PyMOL session: [heavies.pse](designs_v2/heavies/heavies.pse)
+* Sequences: [heavies.fa](designs_v2/heavies/heavies.fa)
 
 
 

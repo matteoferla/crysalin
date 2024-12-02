@@ -118,5 +118,30 @@ TODO FINISH WRITING!
 
 ## Results
 
+TODO FINISH WRITING!
+
+Bed loop:
+![bed.png](designs_v2/bed/bed.png)
+
+Inner loop:
+![inner.png](designs_v2/inner/inner.png)
+
+Mid helix:
+![mid.png](designs_v2/mid/mid.png)
+
+Side helix:
+![side.png](designs_v2/side/side.png)
+
+Post-tag:
+![posttag.png](designs_v2/posttag/posttag.png)
+
+Pocket fill:
+![pocketfill.png](designs_v2/pocket/pocket.png)
+
+Discussion point. The selection tends to favour smaller designs.
+The following are the larger designs:
+
+![heavies.png](images/heavies/heavies.png)
+
 
 

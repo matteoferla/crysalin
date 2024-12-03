@@ -123,7 +123,53 @@ sbatch rescore.slurm.sh;
 
 ## Results
 
-**TODO FINISH WRITING**
+| Group   | N skeletons | N processed | N Optimised |
+|:-------------|------------:|------------:|------------:|
+| bed          |        3728 |        8780 |        2059 |
+| inner        |        1298 |        3537 |         890 |
+| mid          |        2694 |        4963 |         286 |
+| pocket       |        2676 |       11363 |         740 |
+| posttag      |        2712 |        4255 |         769 |
+| side         |        2695 |        4247 |        2894 |
+| ref          |          13 |         13 |          13 |
+
+Reference designs were made. One was the starting template, unaltered,
+while the others were the region that was altered in the design groups,
+which was stripped of sidechains, threaded with the original sequence and a polyglycine and then relaxed.
+As expected by chance some of these performed better than the original, including some glycine designs.
+
+A set of hard filters were applied to the designs based on the template.
+
+* ∆G monomer < WT ∆G monomer
+* ∆∆G < WT ∆∆G
+* Number of streptavidin residues with 6Å (centroid) > WT number
+* Maximum per residue score < WT maximum
+
+A multi-term score was used to rank the designs.
+The following metrics were Z-score normalised and tanh smoothened to taper values beyond ±2 sigma,
+within each group. The weighted-sums of terms were Z-score normalised within each group again.
+The weights were chosen arbitrarily:
+
+* ∆G monomer: 2.
+* ∆∆G: 1.
+* RMSD: 0.8
+* Hydrophobic sasa: 0.5
+* N_close_residues_6: 0.5
+* Change ratio: 0.3 (i.e. the fraction of residues that were changed by Rosetta Relax design)
+* Maximum per residue score: 0.1
+
+
+| supergroup   |   hard |   strict |   strictest | high_zscore > 1 | zscore > 0 |
+|:-------------|-------:|---------:|------------:|----------------:|-----------:|
+| side         |   1677 |      107 |           8 |             312 |        821 |
+| bed          |   1050 |        9 |           1 |             195 |        505 |
+| inner        |    438 |       77 |          23 |              75 |        217 |
+| pocket       |    362 |        1 |           0 |              63 |        176 |
+| posttag      |     94 |        7 |           0 |              17 |         45 |
+| mid          |     24 |        1 |           0 |               4 |         13 |
+
+
+TODO COPY OVER MORE ANALYSES
 
 ### Bed loop
 ![bed.png](designs_v2/bed/bed.png)
@@ -171,8 +217,8 @@ sbatch rescore.slurm.sh;
 Discussion point. The selection tends to favour smaller designs.
 The following are the larger designs:
 
-![heavies.png](images/heavies/heavies.png)
-
+![heavies.png](designs_v2/heavies/heavies.png)
+* 
 * Files: [heavies](designs_v2/heavies)
 * PyMOL session: [heavies.pse](designs_v2/heavies/heavies.pse)
 * Sequences: [heavies.fa](designs_v2/heavies/heavies.fa)

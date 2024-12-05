@@ -1,0 +1,30 @@
+>mid4_223D global_rank=3756 group=mid ddG=-123.8 rmsd=1.6 monomer_dG=-928.6 N_close_res=88 h_sasa=nan
+LAAFYIPAYGQYLPP
+
+>mid4_215D global_rank=3763 group=mid ddG=-92.5 rmsd=1.4 monomer_dG=-930.1 N_close_res=81 h_sasa=nan
+RAYLEGYPT
+
+>mid_487B global_rank=1748 group=mid ddG=-123.9 rmsd=1.5 monomer_dG=-912.8 N_close_res=80 h_sasa=nan
+AG
+
+>mid4_15D global_rank=3692 group=mid ddG=-120.2 rmsd=2.5 monomer_dG=-919.3 N_close_res=84 h_sasa=0.0
+LANDGYT
+
+>mid4_20B global_rank=3731 group=mid ddG=-96.5 rmsd=1.3 monomer_dG=-914.8 N_close_res=87 h_sasa=0.0
+ALIGNSH
+
+>mid4_20C global_rank=3738 group=mid ddG=-112.7 rmsd=1.3 monomer_dG=-916.2 N_close_res=80 h_sasa=0.1
+IPLDHNA
+
+>mid4_2F global_rank=3735 group=mid ddG=-114.8 rmsd=1.9 monomer_dG=-920.7 N_close_res=85 h_sasa=0.1
+IPLPNPDSMSY
+
+>mid4_223Ø global_rank=3764 group=mid ddG=-132.0 rmsd=1.6 monomer_dG=-912.4 N_close_res=82 h_sasa=nan
+MAAKGDAAHGGGRDS
+
+>mid4_49D global_rank=3704 group=mid ddG=-108.7 rmsd=1.5 monomer_dG=-912.1 N_close_res=82 h_sasa=0.0
+YAQGQW
+
+>mid4_47F global_rank=3711 group=mid ddG=-110.4 rmsd=1.6 monomer_dG=-911.9 N_close_res=81 h_sasa=0.1
+LAGG
+

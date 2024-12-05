@@ -1,0 +1,30 @@
+>posttag4_33E global_rank=3639 group=posttag ddG=-113.7 rmsd=1.5 monomer_dG=-953.5 N_close_res=82 h_sasa=-0.0
+GATCAAGATAATTCTGTTCAAGAACTGTTTTCTCTGCCTGGTATTCTGTGGGTTGGT
+
+>posttag4_77B global_rank=3609 group=posttag ddG=-113.2 rmsd=1.2 monomer_dG=-944.8 N_close_res=82 h_sasa=0.0
+GGTGATGGTCTGCCTATTAATGAAGATCATCTGATTTGG
+
+>posttag4B_196E global_rank=6672 group=posttag ddG=-125.1 rmsd=1.3 monomer_dG=-952.2 N_close_res=80 h_sasa=nan
+AAATATGATATTGTTCTGCCTGATATGCTGAAAATTCTGCAAGCTGAACTGATGTTTTTT
+
+>posttag4B_196B global_rank=6617 group=posttag ddG=-121.1 rmsd=1.4 monomer_dG=-942.3 N_close_res=81 h_sasa=nan
+GCTGTTGATTATCAAACTGAAGATACTAAATATTGGTTTCATTATTATTATCTGCTGCTG
+
+>posttag4B_218C global_rank=6198 group=posttag ddG=-122.0 rmsd=1.7 monomer_dG=-950.1 N_close_res=80 h_sasa=nan
+CAAATGTTTGATAAATCTTCTATGGATTGGTATGTTATGGCTCTGCTGCCTGCTATT
+
+>posttag4_119B global_rank=3484 group=posttag ddG=-113.6 rmsd=1.3 monomer_dG=-947.5 N_close_res=81 h_sasa=0.1
+ACTACTACTGATCCTTGGGAAACTCTGGTTAAAATTATTTATGTTCTGGCT
+
+>posttag4B_406C global_rank=6321 group=posttag ddG=-121.4 rmsd=1.0 monomer_dG=-931.6 N_close_res=80 h_sasa=nan
+ACTGCTCGTACTGAAGCTGAAAAAGCTCATCTGCTGGCTCTGACT
+
+>posttag4_33B global_rank=3500 group=posttag ddG=-135.7 rmsd=1.2 monomer_dG=-929.5 N_close_res=81 h_sasa=0.1
+TCTGATGATGATTCTTATAAATGGTTTGGTCCTCTGGCTCCTTGGTATAAAGCTGGT
+
+>posttag4_117D global_rank=3582 group=posttag ddG=-135.3 rmsd=2.1 monomer_dG=-935.0 N_close_res=80 h_sasa=0.0
+GATTCTAATCGTGAAGCTATGTGGATTTGGCTGAATGGTGGTCCTCTGCTGGCTGCTATG
+
+>posttag4B_218B global_rank=6347 group=posttag ddG=-112.8 rmsd=1.3 monomer_dG=-943.0 N_close_res=80 h_sasa=nan
+GATCTGTTTTATAAATGGGGTTTTGTTTGGAAAATTGCTCTGACTCTGCCTGCTTGG
+

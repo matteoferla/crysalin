@@ -415,14 +415,14 @@ def design_different_by_aligment(pose: pyrosetta.Pose, ref: pyrosetta.Pose, cycl
     relax.set_task_factory(task_factory)
     relax.apply(pose)
 
-def score_interface(complex: Union[pyrosetta.Pose, Sequence[pyrosetta.Pose]], interface: str):
-    if isinstance(complex, Sequence):
-        _complex = complex[0].clone()
-        for c in complex[1:]:
+def score_interface(multimer: Union[pyrosetta.Pose, Sequence[pyrosetta.Pose]], interface: str):
+    if isinstance(multimer, Sequence):
+        _complex = multimer[0].clone()
+        for c in multimer[1:]:
             add_chain(_complex, c)
-        complex = _complex
+        multimer = _complex
     ia = pyrosetta.rosetta.protocols.analysis.InterfaceAnalyzerMover(interface)
-    ia.apply(complex)
+    ia.apply(multimer)
     return {'complex_energy': ia.get_complex_energy(),
             'separated_interface_energy': ia.get_separated_interface_energy(),
             'complexed_sasa': ia.get_complexed_sasa(),

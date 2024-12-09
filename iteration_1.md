@@ -1,5 +1,8 @@
 ## Iteration 1
 
+> For landing page see: [README.md](README.md)
+> For iteration 2 see: [iteration_2.md](iteration_2.md)
+
 ## Naming scheme
 
 * Experiments were given Greek letters
